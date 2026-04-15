@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import type { AgentRole } from "@/types";
 import type { ChatStatusData, ChatUIMessage } from "@/types/chat";
 import { getAgentById } from "@/lib/agents/registry";
@@ -163,10 +164,10 @@ export function ChatPanel({
                 </Avatar>
                 <div
                   className={cn(
-                    "rounded-2xl px-4 py-2.5 max-w-[80%] text-sm leading-relaxed",
+                    "min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-tr-sm"
-                      : "bg-muted rounded-tl-sm"
+                      ? "max-w-[80%] bg-primary text-primary-foreground rounded-tr-sm shadow-sm"
+                      : "max-w-[85%] rounded-tl-sm border border-border/70 bg-card/90 shadow-sm backdrop-blur-sm lg:max-w-[48rem]"
                   )}
                 >
                   {message.role === "assistant" &&
@@ -200,7 +201,13 @@ export function ChatPanel({
                     )}
 
                   {text ? (
-                    <div className="whitespace-pre-wrap break-words">{text}</div>
+                    message.role === "assistant" ? (
+                      <ChatMarkdown content={text} />
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words">
+                        {text}
+                      </div>
+                    )
                   ) : (
                     message.role === "assistant" &&
                     statusPart && (
@@ -223,7 +230,7 @@ export function ChatPanel({
                   {agent?.name?.[0]}
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="rounded-2xl rounded-tl-sm border border-border/70 bg-card/90 px-4 py-3 shadow-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               </div>
             </div>
