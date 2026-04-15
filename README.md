@@ -15,6 +15,17 @@ Troupe 是一个本地 AI 多智能体产品开发工作台，帮助独立开发
 - **纯本地运行** — 数据存储在本地 SQLite，不出本机
 - **深色模式** — 支持亮色/暗色/跟随系统
 
+## Data Storage
+
+- Database location priority:
+  - `DATABASE_PATH` environment variable
+  - legacy `troupe.db` found in the current working directory or detected project root
+  - a stable per-user app data path:
+    - macOS: `~/Library/Application Support/Troupe/troupe.db`
+    - Windows: `%APPDATA%/Troupe/troupe.db`
+    - Linux: `${XDG_DATA_HOME:-~/.local/share}/troupe/troupe.db`
+- This keeps project, document, and chat history available across app restarts even when the desktop app launches with a different working directory.
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) + TypeScript

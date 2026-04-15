@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, use, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, FileText } from "lucide-react";
+import { ArrowLeft, Sparkles, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhaseSidebar } from "@/components/workspace/phase-sidebar";
 import { RoleTabs } from "@/components/workspace/role-tabs";
@@ -35,8 +35,13 @@ export default function ProjectWorkspace({
   const [initialMessages, setInitialMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationLoadError, setConversationLoadError] = useState<
+    string | null
+  >(null);
   const [docRefresh, setDocRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
+  const conversationRequestRef = useRef(0);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -65,21 +70,52 @@ export default function ProjectWorkspace({
 
   const loadConversation = useCallback(
     async (role: AgentRole, phase: Phase) => {
-      const res = await fetch(`/api/projects/${id}/conversations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, phase }),
-      });
-      const conv = await res.json();
-      setConversationId(conv.id);
+      const requestId = conversationRequestRef.current + 1;
+      conversationRequestRef.current = requestId;
 
-      const msgRes = await fetch(
-        `/api/projects/${id}/messages?conversationId=${conv.id}`
-      );
-      const msgs = await msgRes.json();
-      setInitialMessages(
-        msgs.map((m: any) => ({ role: m.role, content: m.content }))
-      );
+      setConversationLoading(true);
+      setConversationLoadError(null);
+      setConversationId(null);
+      setInitialMessages([]);
+
+      try {
+        const res = await fetch(`/api/projects/${id}/conversations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role, phase }),
+        });
+        if (!res.ok) {
+          throw new Error("恢复会话失败");
+        }
+        const conv = await res.json();
+
+        const msgRes = await fetch(
+          `/api/projects/${id}/messages?conversationId=${conv.id}`
+        );
+        if (!msgRes.ok) {
+          throw new Error("读取历史消息失败");
+        }
+        const msgs = await msgRes.json();
+
+        if (conversationRequestRef.current !== requestId) {
+          return;
+        }
+
+        setInitialMessages(
+          msgs.map((m: any) => ({ role: m.role, content: m.content }))
+        );
+        setConversationId(conv.id);
+      } catch (error) {
+        if (conversationRequestRef.current === requestId) {
+          setConversationLoadError(
+            error instanceof Error ? error.message : "恢复对话记录失败"
+          );
+        }
+      } finally {
+        if (conversationRequestRef.current === requestId) {
+          setConversationLoading(false);
+        }
+      }
     },
     [id]
   );
@@ -191,14 +227,38 @@ export default function ProjectWorkspace({
           />
 
           <div className="flex-1 min-h-0">
-            <ChatPanel
-              key={`${conversationId}-${activeRole}`}
-              projectId={id}
-              conversationId={conversationId}
-              role={activeRole}
-              initialMessages={initialMessages}
-              onDocumentGenerated={() => setDocRefresh((n) => n + 1)}
-            />
+            {conversationLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  正在恢复对话记录...
+                </div>
+              </div>
+            ) : conversationId ? (
+              <ChatPanel
+                key={`${conversationId}-${currentPhase}-${activeRole}`}
+                projectId={id}
+                conversationId={conversationId}
+                role={activeRole}
+                initialMessages={initialMessages}
+                onDocumentGenerated={() => setDocRefresh((n) => n + 1)}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <div className="space-y-3 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {conversationLoadError || "暂时无法恢复对话记录"}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadConversation(activeRole, currentPhase)}
+                  >
+                    重试恢复
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <PhaseGateBar

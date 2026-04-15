@@ -1,16 +1,14 @@
 # Task Plan
 
 ## Goal
-在保留 `Codex CLI` 作为聊天执行后端的前提下，优化当前聊天交互：
-- 用户发送后立刻出现 assistant 等待态，而不是只剩按钮 loading。
-- 对 Codex 调用过程显示阶段状态。
-- 在 Codex 返回完整结果后，使用分块输出提升“流式”体感。
+修复 Troupe 在返回项目列表并重新进入项目后丢失 AI 对话记录的问题，确保同一项目下按阶段/角色保存的对话消息能被正确恢复，并继续作为后续聊天上下文。
 
 ## Phases
-- [complete] 盘点当前聊天链路可扩展点，确定 `UIMessageStream` 与状态 part 的实现方式。
-- [complete] 改造 Codex 聊天路由：即时返回流、推送状态更新、结果分块输出。
-- [complete] 改造聊天面板：渲染 assistant 等待态、状态提示与更明确的生成中交互。
-- [complete] 运行类型校验并记录剩余风险。
+- [complete] 盘点聊天持久化链路，确认会话与消息是否已落库，以及恢复入口是否存在。
+- [complete] 复核“返回后再进入”场景，确认历史消息丢失是否由前端恢复时序竞态引起。
+- [complete] 修复项目页会话恢复时序，避免 `ChatPanel` 以空消息过早初始化。
+- [complete] 运行类型校验并确认不会影响现有项目、会话与消息接口。
+- [complete] 记录兼容策略与剩余风险。
 
 ## Errors Encountered
-- `npm run build` 曾在沙箱内失败，原因是 Next/Turbopack 拉取 Google Fonts 时网络受限；如本轮再次需要完整构建，可能仍需沙箱外执行。
+- 暂无。
