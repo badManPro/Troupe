@@ -10,15 +10,27 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { AgentRole } from "@/types";
+import type { ChatStatusData, ChatUIMessage } from "@/types/chat";
 import { getAgentById } from "@/lib/agents/registry";
 
-function getMessageText(
-  message: { parts: Array<{ type: string; text?: string }> }
-): string {
+type ChatMessagePart = ChatUIMessage["parts"][number];
+
+function isChatStatusPart(
+  part: ChatMessagePart
+): part is Extract<ChatMessagePart, { type: "data-chatStatus" }> {
+  return part.type === "data-chatStatus";
+}
+
+function getMessageText(message: ChatUIMessage): string {
   return message.parts
     .filter((p) => p.type === "text")
     .map((p) => p.text ?? "")
     .join("");
+}
+
+function getMessageStatus(message: ChatUIMessage): ChatStatusData | null {
+  const statusParts = message.parts.filter(isChatStatusPart);
+  return statusParts.length > 0 ? statusParts[statusParts.length - 1].data : null;
 }
 
 interface ChatPanelProps {
@@ -44,7 +56,7 @@ export function ChatPanel({
     id: String(i),
     role: m.role as "user" | "assistant",
     parts: [{ type: "text" as const, text: m.content }],
-  }));
+  })) as ChatUIMessage[];
 
   const {
     messages,
@@ -53,7 +65,7 @@ export function ChatPanel({
     status,
     error,
     clearError,
-  } = useChat({
+  } = useChat<ChatUIMessage>({
     id: conversationId ?? undefined,
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -90,6 +102,12 @@ export function ChatPanel({
   };
 
   const isGenerating = status === "streaming" || status === "submitted";
+  const lastMessage = messages[messages.length - 1];
+  const showFallbackLoader =
+    isGenerating &&
+    !!lastMessage &&
+    !getMessageText(lastMessage) &&
+    !getMessageStatus(lastMessage);
 
   return (
     <div className="flex flex-col h-full">
@@ -113,7 +131,10 @@ export function ChatPanel({
 
           {messages.map((message) => {
             const text = getMessageText(message);
-            if (!text) return null;
+            const statusPart = getMessageStatus(message);
+            const shouldRender = Boolean(text) || Boolean(statusPart);
+
+            if (!shouldRender) return null;
 
             return (
               <div
@@ -148,26 +169,65 @@ export function ChatPanel({
                       : "bg-muted rounded-tl-sm"
                   )}
                 >
-                  <div className="whitespace-pre-wrap break-words">{text}</div>
+                  {message.role === "assistant" &&
+                    statusPart &&
+                    statusPart.phase !== "complete" && (
+                      <div
+                        className={cn(
+                          "mb-2 rounded-xl border px-3 py-2 text-[11px] leading-relaxed",
+                          statusPart.phase === "error"
+                            ? "border-destructive/20 bg-destructive/5 text-destructive"
+                            : "border-border/60 bg-background/70 text-muted-foreground"
+                        )}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={cn(
+                              "mt-1 h-2 w-2 shrink-0 rounded-full",
+                              statusPart.phase === "error"
+                                ? "bg-destructive"
+                                : "bg-primary animate-pulse"
+                            )}
+                          />
+                          <div className="space-y-1">
+                            <div className="font-medium text-foreground/90">
+                              {statusPart.label}
+                            </div>
+                            {statusPart.detail && <div>{statusPart.detail}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                  {text ? (
+                    <div className="whitespace-pre-wrap break-words">{text}</div>
+                  ) : (
+                    message.role === "assistant" &&
+                    statusPart && (
+                      <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
+                        <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-current/70 animate-pulse" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-current/50 animate-pulse" />
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             );
           })}
 
-          {isGenerating &&
-            messages.length > 0 &&
-            !getMessageText(messages[messages.length - 1]) && (
-              <div className="flex gap-3">
-                <Avatar className="w-8 h-8 bg-muted shrink-0">
-                  <AvatarFallback className="text-xs bg-muted text-muted-foreground">
-                    {agent?.name?.[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                </div>
+          {showFallbackLoader && (
+            <div className="flex gap-3">
+              <Avatar className="w-8 h-8 bg-muted shrink-0">
+                <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+                  {agent?.name?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               </div>
-            )}
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 justify-center py-2">

@@ -57,6 +57,15 @@ export interface CodexModel {
   description: string;
 }
 
+export interface CodexExecEvent {
+  type?: string;
+  item?: {
+    type?: string;
+    text?: string;
+  };
+  [key: string]: unknown;
+}
+
 let pendingLogin: PendingCodexLogin | null = null;
 
 export function readAuthJson(): CodexAuthJson | null {
@@ -315,21 +324,23 @@ export async function startCodexDeviceLogin(): Promise<CodexDeviceAuth> {
   });
 }
 
-function extractAgentMessageText(line: string): string | null {
+function parseCodexExecEvent(line: string): CodexExecEvent | null {
   try {
-    const parsed = JSON.parse(line) as {
-      type?: string;
-      item?: { type?: string; text?: string };
-    };
+    const parsed = JSON.parse(line) as CodexExecEvent;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
-    if (
-      parsed.type === "item.completed" &&
-      parsed.item?.type === "agent_message" &&
-      typeof parsed.item.text === "string"
-    ) {
-      return parsed.item.text;
-    }
-  } catch {}
+function extractAgentMessageText(event: CodexExecEvent | null): string | null {
+  if (
+    event?.type === "item.completed" &&
+    event.item?.type === "agent_message" &&
+    typeof event.item.text === "string"
+  ) {
+    return event.item.text;
+  }
 
   return null;
 }
@@ -340,6 +351,7 @@ export async function runCodexPrompt(
     cwd?: string;
     model?: string;
     abortSignal?: AbortSignal;
+    onEvent?: (event: CodexExecEvent) => void;
   }
 ): Promise<string> {
   if (!isCodexInstalled()) {
@@ -400,7 +412,12 @@ export async function runCodexPrompt(
 
         if (!line) continue;
 
-        const maybeText = extractAgentMessageText(line);
+        const event = parseCodexExecEvent(line);
+        if (event) {
+          options?.onEvent?.(event);
+        }
+
+        const maybeText = extractAgentMessageText(event);
         if (maybeText) {
           finalText = maybeText;
         }
@@ -419,7 +436,12 @@ export async function runCodexPrompt(
 
     child.on("close", (exitCode) => {
       if (stdoutBuffer.trim()) {
-        const maybeText = extractAgentMessageText(stdoutBuffer.trim());
+        const event = parseCodexExecEvent(stdoutBuffer.trim());
+        if (event) {
+          options?.onEvent?.(event);
+        }
+
+        const maybeText = extractAgentMessageText(event);
         if (maybeText) {
           finalText = maybeText;
         }
