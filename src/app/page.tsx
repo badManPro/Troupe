@@ -160,7 +160,7 @@ export default function Dashboard() {
               <DialogHeader>
                 <DialogTitle>创建新项目</DialogTitle>
                 <DialogDescription>
-                  用一句话描述你的想法，产品经理会帮你进一步梳理
+                  创建项目后，进入工作台与产品经理对话来梳理你的想法
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -175,16 +175,16 @@ export default function Dashboard() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
-                    初始想法{" "}
+                    项目简介{" "}
                     <span className="text-muted-foreground font-normal">
-                      （可选，写多少算多少）
+                      （可选）
                     </span>
                   </label>
                   <Textarea
-                    placeholder="描述一下你想做什么、解决什么问题、给谁用..."
+                    placeholder="仅用于项目列表展示，不会作为产品上下文传递给 AI 角色。详细需求请在工作台中与产品经理沟通。"
                     value={newDesc}
                     onChange={(e) => setNewDesc(e.target.value)}
-                    rows={4}
+                    rows={3}
                   />
                 </div>
               </div>

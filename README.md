@@ -19,7 +19,7 @@ Troupe 是一个本地 AI 多智能体产品开发工作台，帮助独立开发
 
 - **Framework**: Next.js 16 (App Router) + TypeScript
 - **UI**: Tailwind CSS v4 + shadcn/ui + Framer Motion
-- **AI**: Vercel AI SDK + OpenAI API
+- **AI**: Vercel AI SDK + OpenAI API / Codex CLI
 - **Database**: SQLite + Drizzle ORM
 - **Desktop**: Tauri v2 (optional)
 
@@ -28,7 +28,9 @@ Troupe 是一个本地 AI 多智能体产品开发工作台，帮助独立开发
 ### Prerequisites
 
 - Node.js >= 18
-- An OpenAI API key
+- One of:
+  - An OpenAI API key, or
+  - A logged-in Codex CLI session (for ChatGPT Plus/Pro users without API keys)
 
 ### Install & Run
 
@@ -48,9 +50,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Configure
 
 1. Go to **Settings** (gear icon in the top right)
-2. Enter your OpenAI API Key
-3. Select your preferred model
-4. Start creating projects!
+2. Choose one provider:
+   - `OpenAI API`: enter your API key and select a model
+   - `Codex CLI`: install the official Codex CLI and complete device login in Settings
+3. Start creating projects!
 
 ### Tauri Desktop App (Optional)
 
