@@ -1,0 +1,75 @@
+{
+  "name": "troupe",
+  "version": "1.0.0",
+  "description": "The Multi-Agent OS for Product Design. Streamline your solo dev workflow from ideation to deployment. Dedicated to the creators who have a galaxy in their heads but struggle to find the first brick on the ground.",
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "cargo tauri build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/badManPro/Troupe.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/badManPro/Troupe/issues"
+  },
+  "homepage": "https://github.com/badManPro/Troupe#readme",
+  "private": "true",
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/react": "^3.0.163",
+    "@radix-ui/react-avatar": "^1.1.11",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@tailwindcss/typography": "^0.5.19",
+    "ai": "^6.0.161",
+    "better-sqlite3": "^12.9.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.2",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.8.0",
+    "next": "^16.2.3",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.5.0",
+    "uuid": "^13.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.3",
+    "postcss": "^8.5.9",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicholastcs/tauri-v2-schemas/main/schema.json",
+  "productName": "Troupe",
+  "version": "0.1.0",
+  "identifier": "com.troupe.app",
+  "build": {
+    "frontendDist": "../out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Troupe - AI Product Development Workstation",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  }
+}
