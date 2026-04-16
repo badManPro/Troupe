@@ -43,10 +43,6 @@ export default function ProjectWorkspace({
   const [loading, setLoading] = useState(true);
   const conversationRequestRef = useRef(0);
 
-  const handleDocumentGenerated = useCallback(() => {
-    setDocRefresh((n) => n + 1);
-  }, []);
-
   const fetchProject = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${id}`);
@@ -67,6 +63,11 @@ export default function ProjectWorkspace({
       setLoading(false);
     }
   }, [id, router, loading]);
+
+  const handleDocumentGenerated = useCallback(() => {
+    setDocRefresh((n) => n + 1);
+    fetchProject();
+  }, [fetchProject]);
 
   useEffect(() => {
     fetchProject();
@@ -244,6 +245,7 @@ export default function ProjectWorkspace({
                 projectId={id}
                 conversationId={conversationId}
                 role={activeRole}
+                phase={currentPhase}
                 initialMessages={initialMessages}
                 onDocumentGenerated={handleDocumentGenerated}
               />

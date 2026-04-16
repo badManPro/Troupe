@@ -11,8 +11,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import { QuestionnaireCard } from "@/components/chat/questionnaire-card";
+import { BrainstormProgressCard } from "@/components/chat/brainstorm-progress-card";
+import {
+  analyzeBrainstormProgress,
+  shouldShowBrainstormProgress,
+} from "@/lib/chat/brainstorm-progress";
 import { extractQuestionnaireFromMessage } from "@/lib/chat/questionnaire";
-import type { AgentRole } from "@/types";
+import type { AgentRole, Phase } from "@/types";
 import type { ChatStatusData, ChatUIMessage } from "@/types/chat";
 import { getAgentById } from "@/lib/agents/registry";
 
@@ -41,6 +46,7 @@ interface ChatPanelProps {
   projectId: string;
   conversationId: string | null;
   role: AgentRole;
+  phase: Phase;
   initialMessages?: { role: "user" | "assistant"; content: string }[];
   onDocumentGenerated?: () => void;
 }
@@ -49,6 +55,7 @@ export function ChatPanel({
   projectId,
   conversationId,
   role,
+  phase,
   initialMessages = [],
   onDocumentGenerated,
 }: ChatPanelProps) {
@@ -92,6 +99,13 @@ export function ChatPanel({
   }, [messages]);
 
   const isGenerating = status === "streaming" || status === "submitted";
+  const brainstormProgress = useMemo(() => {
+    if (!shouldShowBrainstormProgress(phase, role)) {
+      return null;
+    }
+
+    return analyzeBrainstormProgress(messages);
+  }, [messages, phase, role]);
 
   const handleSend = useCallback(
     (message: string) => {
@@ -111,7 +125,9 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1" ref={scrollRef}>
+      {brainstormProgress && <BrainstormProgressCard analysis={brainstormProgress} />}
+
+      <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
         <ChatTranscript
           agentName={agent?.name}
           agentId={agent?.id}
