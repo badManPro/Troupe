@@ -5,10 +5,12 @@ import {
   FileText,
   Save,
   Download,
-  Plus,
   Sparkles,
   Loader2,
-  ChevronDown,
+  Eye,
+  PencilLine,
+  Expand,
+  Clock3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +18,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DOCUMENT_TYPE_LABELS,
+  PHASE_DOCUMENT_TYPES,
+} from "@/lib/documents/catalog";
 import { DocumentEditor } from "./document-editor";
+import { MarkdownViewer } from "./markdown-viewer";
 import type { DocumentType, Phase } from "@/types";
 import { PHASES } from "@/types";
 
@@ -31,26 +45,6 @@ interface Document {
   createdAt: string;
   updatedAt: string;
 }
-
-const docTypeLabels: Record<DocumentType, string> = {
-  prd: "产品需求文档",
-  user_flow: "用户流程",
-  wireframe: "线框图描述",
-  architecture: "架构设计",
-  api_spec: "API 设计",
-  db_schema: "数据库设计",
-  test_plan: "测试方案",
-  project_plan: "项目计划",
-};
-
-const phaseDocTypes: Record<string, DocumentType[]> = {
-  brainstorm: [],
-  requirements: ["prd"],
-  design: ["user_flow", "wireframe"],
-  architecture: ["architecture", "db_schema"],
-  development: ["api_spec"],
-  delivery: ["test_plan", "project_plan"],
-};
 
 interface DocumentPanelProps {
   projectId: string;
@@ -69,6 +63,8 @@ export function DocumentPanel({
   const [editTitle, setEditTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editorTab, setEditorTab] = useState<"preview" | "edit">("preview");
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -85,15 +81,27 @@ export function DocumentPanel({
   }, [fetchDocuments, refreshTrigger]);
 
   useEffect(() => {
-    if (documents.length > 0 && !activeDoc) {
-      const phaseDoc = documents.find((d) => d.phase === phase);
-      if (phaseDoc) {
-        setActiveDoc(phaseDoc);
-        setEditContent(phaseDoc.content);
-        setEditTitle(phaseDoc.title);
-      }
+    const availableDocTypes = PHASE_DOCUMENT_TYPES[phase] || [];
+    const relevantPhaseDoc = documents.find(
+      (doc) =>
+        doc.phase === phase ||
+        availableDocTypes.includes(doc.type as DocumentType)
+    );
+    const fallbackDoc = relevantPhaseDoc || documents[0] || null;
+
+    if (!fallbackDoc) {
+      setActiveDoc(null);
+      setEditContent("");
+      setEditTitle("");
+      return;
     }
-  }, [documents, phase, activeDoc]);
+
+    if (activeDoc?.id !== fallbackDoc.id) {
+      setActiveDoc(fallbackDoc);
+      setEditContent(fallbackDoc.content);
+      setEditTitle(fallbackDoc.title);
+    }
+  }, [documents, phase, activeDoc?.id]);
 
   const handleSave = async () => {
     if (!activeDoc) return;
@@ -190,17 +198,37 @@ export function DocumentPanel({
     setEditTitle(doc.title);
   };
 
-  const phaseDocs = documents.filter((d) => d.phase === phase);
-  const availableDocTypes = phaseDocTypes[phase] || [];
+  const openDocumentDialog = (tab: "preview" | "edit" = "preview") => {
+    if (!activeDoc) return;
+    setEditorTab(tab);
+    setDialogOpen(true);
+  };
+
+  const availableDocTypes = PHASE_DOCUMENT_TYPES[phase] || [];
+  const phaseDocs = documents.filter(
+    (doc) =>
+      doc.phase === phase ||
+      availableDocTypes.includes(doc.type as DocumentType)
+  );
   const existingTypes = phaseDocs.map((d) => d.type);
   const generatableTypes = availableDocTypes.filter(
     (t) => !existingTypes.includes(t)
   );
+  const sectionCount = editContent.match(/^#{1,3}\s+/gm)?.length ?? 0;
+  const updatedLabel = activeDoc
+    ? new Date(activeDoc.updatedAt).toLocaleString("zh-CN", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
   return (
-    <div className="w-80 border-l bg-card/30 flex flex-col h-full">
+    <>
+    <div className="flex h-full w-[23rem] min-w-[23rem] flex-col border-l bg-card/40 backdrop-blur-sm">
       {/* Header */}
-      <div className="p-3 border-b flex items-center justify-between">
+      <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold">产出物</h3>
@@ -212,11 +240,10 @@ export function DocumentPanel({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={handleSave}
-                disabled={saving}
-                title="保存"
+                onClick={() => openDocumentDialog("preview")}
+                title="展开查看"
               >
-                <Save className="w-3.5 h-3.5" />
+                <Expand className="w-3.5 h-3.5" />
               </Button>
               <Button
                 variant="ghost"
@@ -233,8 +260,8 @@ export function DocumentPanel({
       </div>
 
       {/* Document List & Generation */}
-      <Tabs defaultValue="current" className="flex flex-col flex-1 min-h-0">
-        <TabsList className="mx-3 mt-2 w-fit">
+      <Tabs defaultValue="current" className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="mx-4 mt-3 h-9 w-fit rounded-xl bg-muted/80 p-1">
           <TabsTrigger value="current" className="text-xs">
             当前阶段
           </TabsTrigger>
@@ -243,24 +270,26 @@ export function DocumentPanel({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="current" className="flex-1 flex flex-col mt-0 min-h-0">
-          <div className="p-3 space-y-2">
+        <TabsContent value="current" className="mt-0 flex min-h-0 flex-1 flex-col">
+          <div className="space-y-2 px-4 py-3">
             {phaseDocs.map((doc) => (
               <button
                 key={doc.id}
                 onClick={() => handleSelectDoc(doc)}
-                className={`w-full text-left p-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                className={`w-full cursor-pointer rounded-2xl border px-3 py-2.5 text-left text-sm transition-all ${
                   activeDoc?.id === doc.id
-                    ? "bg-accent"
-                    : "hover:bg-accent/50"
+                    ? "border-primary/25 bg-primary/8 shadow-sm"
+                    : "border-border/70 bg-background/70 hover:border-primary/15 hover:bg-accent/35"
                 }`}
               >
-                <div className="font-medium truncate">{doc.title}</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="secondary" className="text-[10px] h-4">
-                    {docTypeLabels[doc.type as DocumentType] || doc.type}
+                <div className="truncate text-[13px] font-semibold text-foreground">
+                  {doc.title}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <Badge variant="secondary" className="h-4 text-[10px]">
+                    {DOCUMENT_TYPE_LABELS[doc.type as DocumentType] || doc.type}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[10px] text-muted-foreground/90">
                     v{doc.version}
                   </span>
                 </div>
@@ -269,7 +298,7 @@ export function DocumentPanel({
 
             {/* Generate Buttons */}
             {(generatableTypes.length > 0 || availableDocTypes.length > 0) && (
-              <div className="pt-2 space-y-1.5">
+              <div className="space-y-1.5 pt-2">
                 {availableDocTypes.map((docType) => {
                   const exists = existingTypes.includes(docType);
                   return (
@@ -277,7 +306,7 @@ export function DocumentPanel({
                       key={docType}
                       variant="outline"
                       size="sm"
-                      className="w-full justify-start text-xs h-8"
+                      className="h-8 w-full justify-start rounded-xl border-border/70 bg-background/80 text-xs shadow-sm"
                       onClick={() => handleGenerate(docType)}
                       disabled={generating}
                     >
@@ -287,7 +316,7 @@ export function DocumentPanel({
                         <Sparkles className="w-3 h-3" />
                       )}
                       {exists ? "重新生成" : "生成"}
-                      {docTypeLabels[docType]}
+                      {DOCUMENT_TYPE_LABELS[docType]}
                     </Button>
                   );
                 })}
@@ -295,40 +324,90 @@ export function DocumentPanel({
             )}
 
             {phaseDocs.length === 0 && availableDocTypes.length === 0 && (
-              <div className="text-center py-6 text-sm text-muted-foreground">
+              <div className="py-6 text-center text-sm text-muted-foreground">
                 <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p>头脑风暴阶段无需产出文档</p>
-                <p className="text-xs mt-1">先和产品经理聊聊你的想法</p>
+                <p>当前还没有可展示的结构化产出物</p>
+                <p className="text-xs mt-1">
+                  继续和产品经理梳理需求，或进入下一阶段生成正式文档
+                </p>
               </div>
             )}
           </div>
 
-          {/* Document Preview / Editor */}
+          {/* Document Preview Summary */}
           {activeDoc && (
             <>
               <Separator />
-              <div className="flex-1 min-h-0 flex flex-col">
-                <div className="px-3 pt-2">
-                  <Input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="text-xs font-medium h-7 border-0 px-0 focus-visible:ring-0"
-                  />
-                </div>
-                <div className="flex-1 min-h-0">
-                  <DocumentEditor
-                    content={editContent}
-                    onChange={setEditContent}
-                  />
+              <div className="flex min-h-0 flex-1 flex-col p-4">
+                <div className="rounded-[22px] border border-border/70 bg-background/92 shadow-sm">
+                  <div className="space-y-3 px-4 py-3">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-foreground">
+                            {editTitle}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                            <Badge variant="secondary" className="h-4 rounded-md text-[10px]">
+                              {DOCUMENT_TYPE_LABELS[activeDoc.type] || activeDoc.type}
+                            </Badge>
+                            <span>v{activeDoc.version}</span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="h-3 w-3" />
+                              {updatedLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
+                          {sectionCount} 节
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="h-8 flex-1 rounded-xl"
+                        onClick={() => openDocumentDialog("preview")}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        查看
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 flex-1 rounded-xl"
+                        onClick={() => openDocumentDialog("edit")}
+                      >
+                        <PencilLine className="h-3.5 w-3.5" />
+                        编辑
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="relative px-4 py-3">
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-background via-background/92 to-transparent" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background via-background/92 to-transparent" />
+                    <div className="max-h-[24rem] overflow-hidden">
+                      <MarkdownViewer
+                        content={editContent}
+                        density="compact"
+                        showDiagramPreview={false}
+                        className="text-[13px]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </>
           )}
         </TabsContent>
 
-        <TabsContent value="all" className="flex-1 flex flex-col mt-0 min-h-0">
+        <TabsContent value="all" className="mt-0 flex min-h-0 flex-1 flex-col">
           <ScrollArea className="flex-1">
-            <div className="p-3 space-y-2">
+            <div className="space-y-2 px-4 py-3">
               {documents.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   暂无文档
@@ -338,21 +417,23 @@ export function DocumentPanel({
                   <button
                     key={doc.id}
                     onClick={() => handleSelectDoc(doc)}
-                    className={`w-full text-left p-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                    className={`w-full cursor-pointer rounded-2xl border px-3 py-2.5 text-left text-sm transition-all ${
                       activeDoc?.id === doc.id
-                        ? "bg-accent"
-                        : "hover:bg-accent/50"
+                        ? "border-primary/25 bg-primary/8 shadow-sm"
+                        : "border-border/70 bg-background/70 hover:border-primary/15 hover:bg-accent/35"
                     }`}
                   >
-                    <div className="font-medium truncate">{doc.title}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-[10px] h-4">
-                        {docTypeLabels[doc.type as DocumentType] || doc.type}
+                    <div className="truncate text-[13px] font-semibold text-foreground">
+                      {doc.title}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Badge variant="secondary" className="h-4 text-[10px]">
+                        {DOCUMENT_TYPE_LABELS[doc.type as DocumentType] || doc.type}
                       </Badge>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground/90">
                         v{doc.version}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground/90">
                         {PHASES.find((p) => p.id === doc.phase)?.name}
                       </span>
                     </div>
@@ -364,5 +445,76 @@ export function DocumentPanel({
         </TabsContent>
       </Tabs>
     </div>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent className="h-[88vh] max-w-6xl gap-0 overflow-hidden p-0">
+        {activeDoc && (
+          <div className="flex h-full min-h-0 flex-col bg-background">
+            <DialogHeader className="border-b px-6 py-4 pr-14">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <DialogTitle className="text-xl text-foreground">
+                    {editTitle}
+                  </DialogTitle>
+                  <DialogDescription className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="secondary" className="h-5 rounded-md text-[10px]">
+                      {DOCUMENT_TYPE_LABELS[activeDoc.type] || activeDoc.type}
+                    </Badge>
+                    <span>v{activeDoc.version}</span>
+                    <span>{PHASES.find((item) => item.id === activeDoc.phase)?.name}</span>
+                    <span>最近更新于 {updatedLabel}</span>
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExport}
+                    className="rounded-xl"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    导出
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="rounded-xl"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    保存
+                  </Button>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-4">
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="mb-3 h-10 rounded-xl border-border/70 bg-background px-4 text-sm font-medium shadow-sm"
+              />
+              <div className="min-h-0 flex-1 rounded-[22px] border border-border/70 bg-card/50 shadow-sm">
+                <DocumentEditor
+                  content={editContent}
+                  onChange={setEditContent}
+                  tab={editorTab}
+                  onTabChange={(tab) =>
+                    setEditorTab(tab as "preview" | "edit")
+                  }
+                  tabsListClassName="mx-4 mt-4 rounded-xl bg-muted/80"
+                  previewClassName="px-5 pb-5"
+                  textareaClassName="px-4 pb-4"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

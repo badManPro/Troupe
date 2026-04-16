@@ -43,6 +43,10 @@ export default function ProjectWorkspace({
   const [loading, setLoading] = useState(true);
   const conversationRequestRef = useRef(0);
 
+  const handleDocumentGenerated = useCallback(() => {
+    setDocRefresh((n) => n + 1);
+  }, []);
+
   const fetchProject = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${id}`);
@@ -241,7 +245,7 @@ export default function ProjectWorkspace({
                 conversationId={conversationId}
                 role={activeRole}
                 initialMessages={initialMessages}
-                onDocumentGenerated={() => setDocRefresh((n) => n + 1)}
+                onDocumentGenerated={handleDocumentGenerated}
               />
             ) : (
               <div className="flex h-full items-center justify-center">

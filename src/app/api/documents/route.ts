@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
+import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
+import { syncDerivedDocuments } from "@/lib/documents/sync";
 import { v4 as uuid } from "uuid";
 import { eq, and } from "drizzle-orm";
 
@@ -16,6 +18,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  syncDerivedDocuments(projectId);
+
   const docs = db
     .select()
     .from(schema.documents)
@@ -28,6 +32,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   ensureDb();
   const body = await req.json();
+  const documentType = body.type as keyof typeof DOCUMENT_TYPE_LABELS;
 
   const existing = db
     .select()
@@ -63,8 +68,8 @@ export async function POST(req: NextRequest) {
   const doc = {
     id: uuid(),
     projectId: body.projectId,
-    type: body.type,
-    title: body.title,
+    type: documentType,
+    title: body.title || DOCUMENT_TYPE_LABELS[documentType],
     content: body.content || "",
     phase: body.phase,
   };

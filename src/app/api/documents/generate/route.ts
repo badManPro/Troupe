@@ -11,6 +11,7 @@ import { getAgentById } from "@/lib/agents/registry";
 import { buildContext } from "@/lib/agents/context";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
+import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import { v4 as uuid } from "uuid";
 import { eq, and } from "drizzle-orm";
 import type { DocumentType, AgentRole, Phase } from "@/types";
@@ -143,17 +144,6 @@ export async function POST(req: NextRequest) {
   const persistDocument = async (text: string) => {
     if (!text) return;
 
-    const docTypeLabels: Record<string, string> = {
-      prd: "产品需求文档",
-      user_flow: "用户流程",
-      wireframe: "线框图描述",
-      architecture: "架构设计",
-      db_schema: "数据库设计",
-      api_spec: "API 设计",
-      test_plan: "测试方案",
-      project_plan: "项目计划",
-    };
-
     const existing = db
       .select()
       .from(schema.documents)
@@ -182,7 +172,7 @@ export async function POST(req: NextRequest) {
         id: uuid(),
         projectId,
         type: documentType,
-        title: docTypeLabels[documentType] || documentType,
+        title: DOCUMENT_TYPE_LABELS[documentType] || documentType,
         content: text,
         phase,
       })

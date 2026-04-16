@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,10 @@ interface ChatMarkdownProps {
   className?: string;
 }
 
-export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
+export const ChatMarkdown = memo(function ChatMarkdown({
+  content,
+  className,
+}: ChatMarkdownProps) {
   const sectionMap = useMemo(
     () => createMarkdownDiagramSectionMap(content),
     [content]
@@ -101,4 +104,4 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
       </ReactMarkdown>
     </div>
   );
-}
+});

@@ -10,9 +10,16 @@ import { MarkdownHeadingWithPreview } from "@/components/markdown/markdown-headi
 interface MarkdownViewerProps {
   content: string;
   className?: string;
+  density?: "default" | "compact";
+  showDiagramPreview?: boolean;
 }
 
-export function MarkdownViewer({ content, className }: MarkdownViewerProps) {
+export function MarkdownViewer({
+  content,
+  className,
+  density = "default",
+  showDiagramPreview = true,
+}: MarkdownViewerProps) {
   const sectionMap = useMemo(
     () => createMarkdownDiagramSectionMap(content),
     [content]
@@ -21,12 +28,48 @@ export function MarkdownViewer({ content, className }: MarkdownViewerProps) {
   const getSectionByNode = (node?: {
     position?: { start?: { line?: number } };
   }) => {
+    if (!showDiagramPreview) return undefined;
     const line = node?.position?.start?.line;
     return typeof line === "number" ? sectionMap.get(line) : undefined;
   };
 
+  const isCompact = density === "compact";
+
   return (
-    <div className={cn("prose prose-sm dark:prose-invert max-w-none", className)}>
+    <div
+      className={cn(
+        "prose max-w-none text-foreground dark:prose-invert",
+        "prose-headings:text-foreground prose-strong:text-foreground",
+        "prose-p:text-foreground/88 prose-li:text-foreground/84 prose-blockquote:text-foreground/72",
+        "prose-code:text-foreground prose-th:text-foreground prose-td:text-foreground/84",
+        isCompact
+          ? [
+              "prose-sm",
+              "prose-headings:mb-1.5 prose-headings:mt-4",
+              "prose-h1:text-lg prose-h2:text-base prose-h3:text-[0.95rem]",
+              "prose-p:my-2 prose-p:leading-6",
+              "prose-ul:my-2 prose-ul:space-y-1 prose-ul:pl-4",
+              "prose-ol:my-2 prose-ol:space-y-1 prose-ol:pl-4",
+              "prose-li:leading-6",
+              "prose-blockquote:my-3 prose-blockquote:pl-3",
+              "prose-pre:my-3 prose-pre:px-3 prose-pre:py-2.5",
+              "prose-table:my-3",
+            ]
+          : [
+              "prose-sm",
+              "prose-headings:mb-2 prose-headings:mt-5",
+              "prose-h1:text-xl prose-h2:text-lg prose-h3:text-base",
+              "prose-p:my-3 prose-p:leading-7",
+              "prose-ul:my-3 prose-ul:space-y-1.5 prose-ul:pl-5",
+              "prose-ol:my-3 prose-ol:space-y-1.5 prose-ol:pl-5",
+              "prose-li:leading-7",
+              "prose-blockquote:my-4 prose-blockquote:pl-4",
+              "prose-pre:my-4 prose-pre:px-4 prose-pre:py-3",
+              "prose-table:my-4",
+            ],
+        className
+      )}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -61,37 +104,37 @@ export function MarkdownViewer({ content, className }: MarkdownViewerProps) {
             </MarkdownHeadingWithPreview>
           ),
           p: ({ children }) => (
-            <p className="mb-2 leading-relaxed">{children}</p>
+            <p>{children}</p>
           ),
           ul: ({ children }) => (
-            <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>
+            <ul>{children}</ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>
+            <ol>{children}</ol>
           ),
-          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          li: ({ children }) => <li>{children}</li>,
           code: ({ children, className: codeClassName }) => {
             const isInline = !codeClassName;
             if (isInline) {
               return (
-                <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
+                <code className="rounded-md bg-muted/70 px-1.5 py-0.5 text-[0.9em] font-medium">
                   {children}
                 </code>
               );
             }
             return (
-              <code className="block bg-muted/50 p-3 rounded-lg text-xs font-mono overflow-x-auto">
+              <code className="block overflow-x-auto rounded-xl bg-muted/55 text-xs font-mono">
                 {children}
               </code>
             );
           },
           pre: ({ children }) => (
-            <pre className="bg-muted/50 p-3 rounded-lg overflow-x-auto mb-3 text-xs">
+            <pre className="overflow-x-auto rounded-xl border border-border/70 bg-muted/40 text-xs shadow-sm">
               {children}
             </pre>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto mb-3">
+            <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">{children}</table>
             </div>
           ),
@@ -109,11 +152,11 @@ export function MarkdownViewer({ content, className }: MarkdownViewerProps) {
             </td>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-primary/30 pl-4 my-3 italic text-muted-foreground">
+            <blockquote className="rounded-r-lg border-l-4 border-primary/25 bg-muted/20 italic">
               {children}
             </blockquote>
           ),
-          hr: () => <hr className="my-4 border-border" />,
+          hr: () => <hr className="border-border/80" />,
         }}
       >
         {content}
