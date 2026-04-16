@@ -28,10 +28,49 @@ interface TextChunkOptions {
   maxChunkSize?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  abortSignal?: AbortSignal;
 }
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isAbortError(error: unknown) {
+  return (
+    error instanceof DOMException && error.name === "AbortError"
+  ) || (error instanceof Error && error.name === "AbortError");
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }
+}
+
+async function sleepWithAbort(ms: number, signal?: AbortSignal) {
+  if (ms <= 0) {
+    throwIfAborted(signal);
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, ms);
+
+    const handleAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", handleAbort);
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+    };
+
+    if (!signal) {
+      return;
+    }
+
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
 }
 
 function splitTextIntoChunks(
@@ -88,17 +127,37 @@ export async function writeTextInChunks<UI_MESSAGE extends UIMessage>(
 ) {
   const textId = randomUUID();
   const chunks = splitTextIntoChunks(text, options);
+  let emittedText = "";
 
   writer.write({ type: "text-start", id: textId });
 
-  for (let index = 0; index < chunks.length; index += 1) {
-    const chunk = chunks[index];
-    writer.write({ type: "text-delta", id: textId, delta: chunk });
+  try {
+    for (let index = 0; index < chunks.length; index += 1) {
+      throwIfAborted(options.abortSignal);
 
-    if (index < chunks.length - 1) {
-      await sleep(getChunkDelay(chunk, options));
+      const chunk = chunks[index];
+      writer.write({ type: "text-delta", id: textId, delta: chunk });
+      emittedText += chunk;
+
+      if (index < chunks.length - 1) {
+        await sleepWithAbort(getChunkDelay(chunk, options), options.abortSignal);
+      }
     }
-  }
 
-  writer.write({ type: "text-end", id: textId });
+    writer.write({ type: "text-end", id: textId });
+
+    return {
+      emittedText,
+      aborted: false,
+    };
+  } catch (error) {
+    if (!isAbortError(error)) {
+      throw error;
+    }
+
+    return {
+      emittedText,
+      aborted: true,
+    };
+  }
 }

@@ -1,9 +1,18 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Send, Loader2, RotateCcw } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  PencilLine,
+  RotateCcw,
+  Send,
+  Square,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,14 +21,24 @@ import { cn } from "@/lib/utils";
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import { QuestionnaireCard } from "@/components/chat/questionnaire-card";
 import { BrainstormProgressCard } from "@/components/chat/brainstorm-progress-card";
+import { ChatPromptSuggestions } from "@/components/chat/chat-prompt-suggestions";
 import { RequirementsGuideCard } from "@/components/chat/requirements-guide-card";
 import {
   analyzeBrainstormProgress,
   shouldShowBrainstormProgress,
 } from "@/lib/chat/brainstorm-progress";
 import { extractQuestionnaireFromMessage } from "@/lib/chat/questionnaire";
+import {
+  getRemainingQuickStartActions,
+  getRequirementsGuide,
+  type QuickStartAction,
+} from "@/lib/chat/requirements-guide";
 import type { AgentRole, Phase } from "@/types";
-import type { ChatStatusData, ChatUIMessage } from "@/types/chat";
+import type {
+  ChatStatusData,
+  ChatUIMessage,
+  PersistedChatMessage,
+} from "@/types/chat";
 import { getAgentById } from "@/lib/agents/registry";
 
 type ChatMessagePart = ChatUIMessage["parts"][number];
@@ -41,6 +60,14 @@ function getMessageText(message: ChatUIMessage): string {
 function getMessageStatus(message: ChatUIMessage): ChatStatusData | null {
   const statusParts = message.parts.filter(isChatStatusPart);
   return statusParts.length > 0 ? statusParts[statusParts.length - 1].data : null;
+}
+
+function toChatUIMessage(message: PersistedChatMessage): ChatUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: [{ type: "text", text: message.content }],
+  };
 }
 
 function getEmptyStateCopy(
@@ -88,7 +115,7 @@ interface ChatPanelProps {
   role: AgentRole;
   phase: Phase;
   hasExistingPrd?: boolean;
-  initialMessages?: { role: "user" | "assistant"; content: string }[];
+  initialMessages?: PersistedChatMessage[];
   onDocumentGenerated?: () => void;
 }
 
@@ -105,12 +132,7 @@ export function ChatPanel({
   const agent = getAgentById(role);
 
   const seedMessages = useMemo(
-    () =>
-      initialMessages.map((m, i) => ({
-        id: String(i),
-        role: m.role as "user" | "assistant",
-        parts: [{ type: "text" as const, text: m.content }],
-      })) as ChatUIMessage[],
+    () => initialMessages.map(toChatUIMessage),
     [initialMessages]
   );
 
@@ -121,6 +143,8 @@ export function ChatPanel({
     status,
     error,
     clearError,
+    setMessages,
+    stop,
   } = useChat<ChatUIMessage>({
     id: conversationId ?? undefined,
     experimental_throttle: STREAM_UPDATE_THROTTLE_MS,
@@ -148,10 +172,31 @@ export function ChatPanel({
 
     return analyzeBrainstormProgress(messages);
   }, [messages, phase, role]);
+  const requirementsGuide = useMemo(() => {
+    if (phase !== "requirements") {
+      return null;
+    }
+
+    return getRequirementsGuide(role, hasExistingPrd);
+  }, [hasExistingPrd, phase, role]);
+  const remainingQuickStartActions = useMemo(() => {
+    if (!requirementsGuide) {
+      return [] satisfies QuickStartAction[];
+    }
+
+    return getRemainingQuickStartActions(messages, requirementsGuide.actions);
+  }, [messages, requirementsGuide]);
   const composerPlaceholder = useMemo(
     () => getComposerPlaceholder(phase, role),
     [phase, role]
   );
+  const composerSuggestionTitle = useMemo(() => {
+    if (!requirementsGuide || remainingQuickStartActions.length === 0) {
+      return "";
+    }
+
+    return messages.length === 0 ? "你可以这样开始" : "你还可以这样继续";
+  }, [messages.length, remainingQuickStartActions.length, requirementsGuide]);
 
   const handleSend = useCallback(
     (message: string) => {
@@ -169,6 +214,50 @@ export function ChatPanel({
     [isGenerating, sendMessage]
   );
 
+  const handleStop = useCallback(() => {
+    if (!isGenerating) return;
+    stop();
+  }, [isGenerating, stop]);
+
+  const handleEditResend = useCallback(
+    async (messageId: string, content: string) => {
+      if (isGenerating || !conversationId) return;
+
+      const response = await fetch(`/api/projects/${projectId}/messages`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          messageId,
+          content,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "更新消息失败");
+      }
+
+      const nextMessages = (payload.messages as PersistedChatMessage[]).map(
+        toChatUIMessage
+      );
+
+      clearError();
+      flushSync(() => {
+        setMessages(nextMessages);
+      });
+      regenerate();
+    },
+    [
+      clearError,
+      conversationId,
+      isGenerating,
+      projectId,
+      regenerate,
+      setMessages,
+    ]
+  );
+
   return (
     <div className="flex flex-col h-full">
       {brainstormProgress && <BrainstormProgressCard analysis={brainstormProgress} />}
@@ -183,6 +272,7 @@ export function ChatPanel({
           isGenerating={isGenerating}
           errorMessage={error?.message}
           onQuestionnaireSubmit={handleQuestionnaireSubmit}
+          onEditResend={handleEditResend}
           onRetry={() => {
             clearError();
             regenerate();
@@ -191,9 +281,13 @@ export function ChatPanel({
       </ScrollArea>
 
       <ChatComposer
-        disabled={isGenerating}
+        isGenerating={isGenerating}
         placeholder={composerPlaceholder}
+        suggestionTitle={composerSuggestionTitle}
+        suggestions={remainingQuickStartActions}
         onSend={handleSend}
+        onSuggestionSelect={handleSend}
+        onStop={handleStop}
       />
     </div>
   );
@@ -208,6 +302,7 @@ interface ChatTranscriptProps {
   isGenerating: boolean;
   errorMessage?: string;
   onQuestionnaireSubmit: (message: string) => void;
+  onEditResend: (messageId: string, content: string) => Promise<void>;
   onRetry: () => void;
 }
 
@@ -220,14 +315,66 @@ const ChatTranscript = memo(function ChatTranscript({
   isGenerating,
   errorMessage,
   onQuestionnaireSubmit,
+  onEditResend,
   onRetry,
 }: ChatTranscriptProps) {
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const lastMessage = messages[messages.length - 1];
   const showFallbackLoader =
     isGenerating &&
     !!lastMessage &&
     !getMessageText(lastMessage) &&
     !getMessageStatus(lastMessage);
+
+  useEffect(() => {
+    if (editingMessageId && !messages.some((message) => message.id === editingMessageId)) {
+      setEditingMessageId(null);
+      setEditingValue("");
+      setEditError(null);
+      setIsSubmittingEdit(false);
+    }
+  }, [editingMessageId, messages]);
+
+  const startEdit = useCallback((messageId: string, text: string) => {
+    setEditingMessageId(messageId);
+    setEditingValue(text);
+    setEditError(null);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingValue("");
+    setEditError(null);
+    setIsSubmittingEdit(false);
+  }, []);
+
+  const handleEditSubmit = useCallback(async () => {
+    const nextValue = editingValue.trim();
+    if (!editingMessageId || !nextValue || isGenerating || isSubmittingEdit) {
+      return;
+    }
+
+    try {
+      setIsSubmittingEdit(true);
+      setEditError(null);
+      await onEditResend(editingMessageId, nextValue);
+      cancelEdit();
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "重新发送失败");
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  }, [
+    cancelEdit,
+    editingMessageId,
+    editingValue,
+    isGenerating,
+    isSubmittingEdit,
+    onEditResend,
+  ]);
 
   return (
     <div className="p-4 space-y-4">
@@ -247,7 +394,6 @@ const ChatTranscript = memo(function ChatTranscript({
             <RequirementsGuideCard
               hasExistingPrd={hasExistingPrd}
               role={agentId ?? "pm"}
-              onPromptSelect={onQuestionnaireSubmit}
             />
           )}
         </div>
@@ -256,11 +402,17 @@ const ChatTranscript = memo(function ChatTranscript({
       {messages.map((message, index) => {
         const text = getMessageText(message);
         const statusPart = getMessageStatus(message);
-        const shouldRender = Boolean(text) || Boolean(statusPart);
+        const isEditingThisMessage =
+          message.role === "user" && editingMessageId === message.id;
         const isStreamingAssistantMessage =
           message.role === "assistant" &&
           isGenerating &&
           index === messages.length - 1;
+        const shouldShowStatus =
+          Boolean(statusPart) &&
+          (statusPart?.phase === "error" ||
+            (isStreamingAssistantMessage && statusPart?.phase !== "complete"));
+        const shouldRender = Boolean(text) || shouldShowStatus;
         const questionnaire =
           message.role === "assistant" && text && !isStreamingAssistantMessage
             ? extractQuestionnaireFromMessage(text)
@@ -302,15 +454,15 @@ const ChatTranscript = memo(function ChatTranscript({
             </Avatar>
             <div
               className={cn(
-                "min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                "group min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
                 message.role === "user"
-                  ? "max-w-[80%] bg-primary text-primary-foreground rounded-tr-sm shadow-sm"
+                  ? isEditingThisMessage
+                    ? "flex-1 max-w-none bg-primary text-primary-foreground rounded-tr-sm shadow-sm"
+                    : "max-w-[80%] bg-primary text-primary-foreground rounded-tr-sm shadow-sm"
                   : "max-w-[85%] rounded-tl-sm border border-border/70 bg-card/90 shadow-sm backdrop-blur-sm lg:max-w-[48rem]"
               )}
             >
-              {message.role === "assistant" &&
-                statusPart &&
-                statusPart.phase !== "complete" && (
+              {message.role === "assistant" && statusPart && shouldShowStatus && (
                   <div
                     className={cn(
                       "mb-2 rounded-xl border px-3 py-2 text-[11px] leading-relaxed",
@@ -338,7 +490,50 @@ const ChatTranscript = memo(function ChatTranscript({
                   </div>
                 )}
 
-              {text ? (
+              {isEditingThisMessage ? (
+                <div className="space-y-3">
+                  <Textarea
+                    value={editingValue}
+                    onChange={(event) => setEditingValue(event.target.value)}
+                    disabled={isSubmittingEdit}
+                    rows={4}
+                    className="min-h-[120px] resize-y border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground placeholder:text-primary-foreground/60"
+                  />
+
+                  {editError && (
+                    <p className="text-xs text-primary-foreground/80">{editError}</p>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                      disabled={isSubmittingEdit}
+                      onClick={cancelEdit}
+                    >
+                      <X className="w-3 h-3" />
+                      取消
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 px-3"
+                      disabled={!editingValue.trim() || isSubmittingEdit || isGenerating}
+                      onClick={handleEditSubmit}
+                    >
+                      {isSubmittingEdit ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Check className="w-3 h-3" />
+                      )}
+                      重新发送
+                    </Button>
+                  </div>
+                </div>
+              ) : text ? (
                 message.role === "assistant" ? (
                   isStreamingAssistantMessage ? (
                     <StreamingMessageText content={text} />
@@ -350,13 +545,28 @@ const ChatTranscript = memo(function ChatTranscript({
                 )
               ) : (
                 message.role === "assistant" &&
-                statusPart && (
+                shouldShowStatus && (
                   <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
                     <span className="h-1.5 w-1.5 rounded-full bg-current/70 animate-pulse" />
                     <span className="h-1.5 w-1.5 rounded-full bg-current/50 animate-pulse" />
                   </div>
                 )
+              )}
+
+              {message.role === "user" && text && !isEditingThisMessage && !isGenerating && (
+                <div className="mt-2 flex justify-end opacity-0 transition-opacity group-hover:opacity-100">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-primary-foreground/85 hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                    onClick={() => startEdit(message.id, text)}
+                  >
+                    <PencilLine className="w-3 h-3" />
+                    编辑
+                  </Button>
+                </div>
               )}
 
               {canShowQuestionnaire && questionnaire && (
@@ -412,25 +622,33 @@ const StreamingMessageText = memo(function StreamingMessageText({
 });
 
 interface ChatComposerProps {
-  disabled: boolean;
+  isGenerating: boolean;
   placeholder: string;
+  suggestionTitle?: string;
+  suggestions?: QuickStartAction[];
   onSend: (message: string) => void;
+  onSuggestionSelect?: (message: string) => void;
+  onStop: () => void;
 }
 
 const ChatComposer = memo(function ChatComposer({
-  disabled,
+  isGenerating,
   placeholder,
+  suggestionTitle,
+  suggestions = [],
   onSend,
+  onSuggestionSelect,
+  onStop,
 }: ChatComposerProps) {
   const [inputValue, setInputValue] = useState("");
 
   const handleSend = useCallback(() => {
     const nextMessage = inputValue.trim();
-    if (!nextMessage || disabled) return;
+    if (!nextMessage || isGenerating) return;
 
     onSend(nextMessage);
     setInputValue("");
-  }, [disabled, inputValue, onSend]);
+  }, [inputValue, isGenerating, onSend]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -443,7 +661,16 @@ const ChatComposer = memo(function ChatComposer({
   );
 
   return (
-    <div className="border-t p-4 bg-card/50">
+    <div className="border-t bg-card/50 p-4">
+      {!isGenerating && suggestionTitle && onSuggestionSelect && suggestions.length > 0 && (
+        <ChatPromptSuggestions
+          title={suggestionTitle}
+          actions={suggestions}
+          onSelect={onSuggestionSelect}
+          className="mb-3"
+        />
+      )}
+
       <div className="flex gap-2">
         <Textarea
           value={inputValue}
@@ -452,17 +679,19 @@ const ChatComposer = memo(function ChatComposer({
           placeholder={placeholder}
           className="min-h-[44px] max-h-32 resize-none"
           rows={1}
-          disabled={disabled}
+          disabled={isGenerating}
         />
         <Button
           type="button"
           size="icon"
-          disabled={!inputValue.trim() || disabled}
+          variant={isGenerating ? "secondary" : "default"}
+          disabled={isGenerating ? false : !inputValue.trim()}
           className="shrink-0 self-end"
-          onClick={handleSend}
+          onClick={isGenerating ? onStop : handleSend}
+          aria-label={isGenerating ? "停止生成" : "发送消息"}
         >
-          {disabled ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+          {isGenerating ? (
+            <Square className="w-3.5 h-3.5 fill-current" />
           ) : (
             <Send className="w-4 h-4" />
           )}

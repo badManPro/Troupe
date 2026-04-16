@@ -1,13 +1,14 @@
 # Task Plan
 
 ## Goal
-分析 Troupe 中“头脑风暴 -> 需求定义”的衔接问题，并在需求定义模块内加入明确指引，让用户一进入阶段就知道要做什么、需要商讨什么、应该产出什么。
+把需求定义阶段的“你可以这样开始”改成输入框上方的持续建议条，只在 AI 空闲时展示，并根据已执行过的建议自动收起剩余项。
 
 ## Phases
-- [complete] 盘点项目工作流、需求定义阶段角色职责、聊天空态和文档生成逻辑，确认问题不在数据结构而在阶段引导缺失。
-- [complete] 为 `requirements` 阶段设计首屏引导方案，明确模块目标、讨论主题、阶段产出和可直接开聊的起手问题。
-- [complete] 实现需求定义引导卡、阶段化欢迎语和输入框提示文案，并增强 PM / QA 的阶段提示词。
-- [complete] 运行类型校验，确认新增引导不影响现有聊天流和会话恢复逻辑。
+- [complete] 盘点需求定义阶段的引导卡、聊天输入区和历史消息结构，确认起手建议当前只会在空态出现一次。
+- [complete] 抽离需求定义阶段的引导配置，补充“建议已执行”的判定逻辑，并确保只有在 AI 回复后才视为完成。
+- [complete] 在输入框上方实现轻量建议条，AI 生成中隐藏，生成完成后仅展示尚未执行过的建议。
+- [complete] 运行类型检查并记录验证结果，同时记录 ESLint 的仓库级配置异常。
 
 ## Errors Encountered
-- `ChatTranscript` 中的 `agentId` 初始仍按 `string` 处理，导致传给 `RequirementsGuideCard` 时类型不匹配。收紧为 `AgentRole` 后解决。
+- `rg` 直接读取 `src/app/project/[id]/page.tsx` 时，`zsh` 把方括号当成了 glob。改成带引号的路径后解决。
+- `./node_modules/.bin/eslint ...` 在仓库当前配置下报 `TypeError: Converting circular structure to JSON`，属于现有 ESLint 配置问题，不是这次改动引入的类型错误。

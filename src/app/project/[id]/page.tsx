@@ -11,6 +11,7 @@ import { DocumentPanel } from "@/components/documents/document-panel";
 import { PhaseGateBar } from "@/components/workspace/phase-gate-bar";
 import type { Phase, AgentRole } from "@/types";
 import { PHASES, getNextPhase } from "@/types";
+import type { PersistedChatMessage } from "@/types/chat";
 
 interface ProjectData {
   id: string;
@@ -32,9 +33,9 @@ export default function ProjectWorkspace({
   const [currentPhase, setCurrentPhase] = useState<Phase>("brainstorm");
   const [activeRole, setActiveRole] = useState<AgentRole>("pm");
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [initialMessages, setInitialMessages] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([]);
+  const [initialMessages, setInitialMessages] = useState<PersistedChatMessage[]>(
+    []
+  );
   const [conversationLoading, setConversationLoading] = useState(false);
   const [conversationLoadError, setConversationLoadError] = useState<
     string | null
@@ -107,7 +108,11 @@ export default function ProjectWorkspace({
         }
 
         setInitialMessages(
-          msgs.map((m: any) => ({ role: m.role, content: m.content }))
+          msgs.map((m: PersistedChatMessage) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+          }))
         );
         setConversationId(conv.id);
       } catch (error) {

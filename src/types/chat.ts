@@ -14,6 +14,12 @@ export interface ChatStatusData {
   detail?: string;
 }
 
+export interface PersistedChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
+
 export type ChatQuestionFieldType =
   | "single_choice"
   | "short_text"

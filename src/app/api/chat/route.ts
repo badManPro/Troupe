@@ -4,6 +4,7 @@ import {
   streamText,
 } from "ai";
 import { NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
 import {
   getActiveProvider,
   getCodexModelId,
@@ -67,6 +68,15 @@ function extractText(msg: any): string {
   return "";
 }
 
+function getMessageId(message: unknown): string | null {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+
+  const candidate = (message as { id?: unknown }).id;
+  return typeof candidate === "string" && candidate.trim() ? candidate : null;
+}
+
 function formatConversationForCodex(messages: any[]) {
   return messages
     .map((message) => {
@@ -112,16 +122,35 @@ export async function POST(req: NextRequest) {
   const contextDocs = phase ? await buildContext(projectId, phase) : "";
 
   const userMessage = messages[messages.length - 1];
+  const userMessageId = getMessageId(userMessage);
   const userText = userMessage ? extractText(userMessage) : "";
   if (userMessage?.role === "user" && conversationId && userText) {
-    db.insert(schema.messages)
-      .values({
-        id: uuid(),
-        conversationId,
-        role: "user",
-        content: userText,
-      })
-      .run();
+    const existingMessage = userMessageId
+      ? db
+          .select()
+          .from(schema.messages)
+          .where(eq(schema.messages.id, userMessageId))
+          .get()
+      : null;
+
+    if (existingMessage?.conversationId === conversationId) {
+      db.update(schema.messages)
+        .set({ content: userText })
+        .where(eq(schema.messages.id, userMessageId!))
+        .run();
+    } else {
+      db.insert(schema.messages)
+        .values({
+          id:
+            existingMessage && existingMessage.conversationId !== conversationId
+              ? uuid()
+              : userMessageId ?? uuid(),
+          conversationId,
+          role: "user",
+          content: userText,
+        })
+        .run();
+    }
   }
 
   const systemPrompt =
@@ -198,29 +227,34 @@ export async function POST(req: NextRequest) {
 
           stopWaitingTimer();
 
-          if (conversationId && text) {
-            db.insert(schema.messages)
-              .values({
-                id: uuid(),
-                conversationId,
-                role: "assistant",
-                content: text,
-              })
-              .run();
-          }
-
           pushStatus({
             phase: "streaming",
             label: "正在输出回复",
             detail: "内容会逐段出现在对话区。",
           });
 
-          await writeTextInChunks(writer, text, {
+          const { emittedText, aborted } = await writeTextInChunks(writer, text, {
             minChunkSize: 10,
             maxChunkSize: 22,
             baseDelayMs: 24,
             maxDelayMs: 92,
+            abortSignal: req.signal,
           });
+
+          if (conversationId && emittedText.trim()) {
+            db.insert(schema.messages)
+              .values({
+                id: uuid(),
+                conversationId,
+                role: "assistant",
+                content: emittedText.trim(),
+              })
+              .run();
+          }
+
+          if (aborted) {
+            return;
+          }
 
           pushStatus({
             phase: "complete",

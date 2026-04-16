@@ -1,10 +1,9 @@
 # Progress
 
-- 2026-04-16: 新任务开始，目标是解决“用户从头脑风暴进入需求定义后，不知道该做什么”的体验断层。
-- 2026-04-16: 已确认现有 `requirements` 阶段的知识主要藏在 PM / QA 提示词里，前端没有显式展示阶段目标、讨论主题和产出物。
-- 2026-04-16: 新增 `src/components/chat/requirements-guide-card.tsx`，在需求定义阶段空态展示“模块要做什么 / 需要商讨什么 / 完成后产出什么”以及一组可直接发送的起手 prompt。
-- 2026-04-16: `src/components/chat/chat-panel.tsx` 已接入需求定义引导卡，同时补充了阶段化欢迎语和输入框 placeholder。
-- 2026-04-16: `src/lib/agents/roles/pm.ts` 与 `src/lib/agents/roles/qa.ts` 已增强，使角色在用户不清楚下一步时先解释阶段任务，再继续追问。
+- 2026-04-16: 读取现有聊天面板、需求定义引导卡和问卷/收敛度逻辑，确认“你可以这样开始”只在空态出现一次。
+- 2026-04-16: 新增 `src/lib/chat/requirements-guide.ts`，把需求定义阶段的 guide 配置和 quick actions 抽成共享数据源，并加入基于历史消息的剩余建议计算逻辑。
+- 2026-04-16: 新增 `src/components/chat/chat-prompt-suggestions.tsx`，在输入框上方渲染轻量建议条，展示剩余可执行建议。
+- 2026-04-16: 更新 `src/components/chat/chat-panel.tsx`，让建议条只在需求定义阶段且 AI 空闲时显示，并在 AI 回复后自动移除已执行过的建议。
+- 2026-04-16: 更新 `src/components/chat/requirements-guide-card.tsx`，保留阶段目标/讨论主题/产出物说明，把起手动作从空态大卡片移到输入框区域。
 - 2026-04-16: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
-- 2026-04-16: 根据反馈修正需求定义阶段语义。若项目已存在 PRD，需求定义阶段不再引导“重新搭骨架”，而是引导用户审查、修订并收敛现有 PRD。
-- 2026-04-16: 修复 `buildContext` 的阶段承接逻辑，聊天与文档生成现在都会读取当前阶段及之前的关联产出物，避免 PM 在需求定义阶段丢失上一阶段文档。
+- 2026-04-16: `./node_modules/.bin/eslint ...` 失败，报错为 `TypeError: Converting circular structure to JSON`；已确认属于仓库现有 ESLint 配置问题。
