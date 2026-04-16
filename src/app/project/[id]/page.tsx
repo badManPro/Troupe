@@ -246,6 +246,7 @@ export default function ProjectWorkspace({
                 conversationId={conversationId}
                 role={activeRole}
                 phase={currentPhase}
+                hasExistingPrd={project.documents.some((doc) => doc.type === "prd")}
                 initialMessages={initialMessages}
                 onDocumentGenerated={handleDocumentGenerated}
               />

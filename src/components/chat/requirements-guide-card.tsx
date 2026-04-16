@@ -27,45 +27,89 @@ interface RequirementsGuideConfig {
   actions: QuickStartAction[];
 }
 
-const PM_GUIDE: RequirementsGuideConfig = {
-  roleLabel: "产品经理视角",
-  summary:
-    "把头脑风暴里的模糊想法收束成一份能评审、能继续设计、能指导开发的需求说明。",
-  goals: [
-    "说清楚产品服务谁，优先解决什么问题。",
-    "把核心使用场景和主流程讲顺，不再停留在想法层。",
-    "压缩首版范围，明确 MVP 边界和功能优先级。",
-  ],
-  topics: [
-    "目标用户、使用场景、触发时机分别是什么。",
-    "用户从进入产品到完成任务，关键链路怎么走。",
-    "哪些功能是 P0 必须有，哪些可以延后到 P1 / P2。",
-    "是否存在依赖、约束、假设和暂不做的范围。",
-  ],
-  deliverables: [
-    "一份结构化 PRD 骨架。",
-    "核心用户故事和主流程说明。",
-    "P0 / P1 / P2 功能清单与 MVP 范围。",
-  ],
-  note: "建议先和产品经理收敛范围，再切到 QA 补验收标准和风险点。",
-  actions: [
-    {
-      label: "先帮我搭 PRD 骨架",
-      prompt:
-        "我们已经进入需求定义阶段。请先告诉我这个阶段要完成什么，然后基于现有想法帮我搭一版 PRD 骨架，并指出还缺哪些关键信息需要我补充。",
-    },
-    {
-      label: "一起收敛 MVP 范围",
-      prompt:
-        "请带我一起收敛 MVP，帮我把功能拆成 P0 / P1 / P2，并提醒我哪些内容首版应该先不做。",
-    },
-    {
-      label: "整理用户故事和主流程",
-      prompt:
-        "请把当前想法整理成目标用户、核心场景、用户故事和主流程，并用需求定义阶段的方式继续追问我。",
-    },
-  ],
-};
+function getPmGuide(hasExistingPrd: boolean): RequirementsGuideConfig {
+  if (hasExistingPrd) {
+    return {
+      roleLabel: "产品经理视角",
+      summary:
+        "把上一阶段已经形成的 PRD 初稿继续收束成评审版，不是重写一份，而是把关键决策补齐、边界确认并冻结下来。",
+      goals: [
+        "确认现有 PRD 里哪些结论已经稳定，哪些还需要补充或修订。",
+        "把核心使用场景和主流程讲顺，消除仍然模糊的产品决策。",
+        "压缩首版范围，明确 MVP 边界和功能优先级。",
+      ],
+      topics: [
+        "现有 PRD 哪些部分还不完整，哪些表述需要收紧。",
+        "目标用户、触发场景和核心链路是否已经足够明确。",
+        "哪些功能是 P0 必须有，哪些可以延后到 P1 / P2。",
+        "是否存在依赖、约束、假设和暂不做的范围。",
+      ],
+      deliverables: [
+        "一版修订后的 PRD / 冻结版需求说明。",
+        "补齐后的核心用户故事和主流程说明。",
+        "确认过的 P0 / P1 / P2 清单与 MVP 范围。",
+      ],
+      note: "建议先把现有 PRD 收口成评审版，再切到 QA 补验收标准和风险点。",
+      actions: [
+        {
+          label: "先审一遍现有 PRD",
+          prompt:
+            "我们已经有一版 PRD 了。请先从需求定义阶段的视角审一遍这份 PRD，告诉我哪些部分已经够用了，哪些地方还需要补充或收紧。",
+        },
+        {
+          label: "基于现有 PRD 收敛 MVP",
+          prompt:
+            "请基于现有 PRD 帮我收敛 MVP，重新梳理 P0 / P1 / P2，并明确哪些内容首版先不做。",
+        },
+        {
+          label: "补齐用户故事和主流程",
+          prompt:
+            "请基于现有 PRD 检查目标用户、核心场景、用户故事和主流程，指出还不完整的地方并继续追问我。",
+        },
+      ],
+    };
+  }
+
+  return {
+    roleLabel: "产品经理视角",
+    summary:
+      "把头脑风暴里的模糊想法收束成一份能评审、能继续设计、能指导开发的需求说明。",
+    goals: [
+      "说清楚产品服务谁，优先解决什么问题。",
+      "把核心使用场景和主流程讲顺，不再停留在想法层。",
+      "压缩首版范围，明确 MVP 边界和功能优先级。",
+    ],
+    topics: [
+      "目标用户、使用场景、触发时机分别是什么。",
+      "用户从进入产品到完成任务，关键链路怎么走。",
+      "哪些功能是 P0 必须有，哪些可以延后到 P1 / P2。",
+      "是否存在依赖、约束、假设和暂不做的范围。",
+    ],
+    deliverables: [
+      "一版结构化 PRD 初稿。",
+      "核心用户故事和主流程说明。",
+      "P0 / P1 / P2 功能清单与 MVP 范围。",
+    ],
+    note: "建议先和产品经理收敛范围，再切到 QA 补验收标准和风险点。",
+    actions: [
+      {
+        label: "先整理 PRD 初稿",
+        prompt:
+          "我们已经进入需求定义阶段。请先告诉我这个阶段要完成什么，然后基于现有想法帮我整理一版 PRD 初稿，并指出还缺哪些关键信息需要我补充。",
+      },
+      {
+        label: "一起收敛 MVP 范围",
+        prompt:
+          "请带我一起收敛 MVP，帮我把功能拆成 P0 / P1 / P2，并提醒我哪些内容首版应该先不做。",
+      },
+      {
+        label: "整理用户故事和主流程",
+        prompt:
+          "请把当前想法整理成目标用户、核心场景、用户故事和主流程，并用需求定义阶段的方式继续追问我。",
+      },
+    ],
+  };
+}
 
 const QA_GUIDE: RequirementsGuideConfig = {
   roleLabel: "QA 评审视角",
@@ -138,13 +182,15 @@ function GuideBlock({
 }
 
 export function RequirementsGuideCard({
+  hasExistingPrd = false,
   role,
   onPromptSelect,
 }: {
+  hasExistingPrd?: boolean;
   role: AgentRole;
   onPromptSelect: (message: string) => void;
 }) {
-  const guide = role === "qa" ? QA_GUIDE : PM_GUIDE;
+  const guide = role === "qa" ? QA_GUIDE : getPmGuide(hasExistingPrd);
 
   return (
     <div className="mx-auto mt-6 max-w-5xl rounded-[28px] border border-primary/15 bg-primary/5 p-4 text-left shadow-sm">

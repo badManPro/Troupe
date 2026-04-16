@@ -1,11 +1,11 @@
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import type { AgentConfig } from "@/types";
-import { PHASE_ORDER, getPhaseIndex } from "@/types";
+import type { Phase } from "@/types";
+import { getPhaseIndex } from "@/types";
 
 export async function buildContext(
   projectId: string,
-  agent: AgentConfig
+  currentPhase: Phase
 ): Promise<string> {
   const docs = db
     .select()
@@ -15,18 +15,23 @@ export async function buildContext(
 
   if (docs.length === 0) return "";
 
-  const earliestAgentPhaseIndex = Math.min(
-    ...agent.phases.map((p) => getPhaseIndex(p))
-  );
+  const currentPhaseIndex = getPhaseIndex(currentPhase);
 
-  const upstreamDocs = docs.filter((doc) => {
-    const docPhaseIndex = getPhaseIndex(doc.phase as any);
-    return docPhaseIndex < earliestAgentPhaseIndex;
-  });
+  const relevantDocs = docs
+    .filter((doc) => {
+      const docPhaseIndex = getPhaseIndex(doc.phase as Phase);
+      return docPhaseIndex >= 0 && docPhaseIndex <= currentPhaseIndex;
+    })
+    .sort((a, b) => {
+      const phaseDiff =
+        getPhaseIndex(a.phase as Phase) - getPhaseIndex(b.phase as Phase);
+      if (phaseDiff !== 0) return phaseDiff;
+      return a.updatedAt.getTime() - b.updatedAt.getTime();
+    });
 
-  if (upstreamDocs.length === 0) return "";
+  if (relevantDocs.length === 0) return "";
 
-  return upstreamDocs
+  return relevantDocs
     .map((doc) => `## ${doc.title}\n\n${doc.content}`)
     .join("\n\n---\n\n");
 }

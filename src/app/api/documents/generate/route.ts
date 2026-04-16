@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const contextDocs = await buildContext(projectId, agent);
+  const contextDocs = await buildContext(projectId, phase);
 
   const project = db
     .select()
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
   const systemPrompt =
     agent.systemPrompt +
     (contextDocs
-      ? `\n\n---\n以下是该项目之前阶段的产出物，请参考：\n${contextDocs}`
+      ? `\n\n---\n以下是该项目当前已有关联产出物，请参考：\n${contextDocs}`
       : "");
 
   const persistDocument = async (text: string) => {

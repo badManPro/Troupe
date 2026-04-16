@@ -45,11 +45,14 @@ function getMessageStatus(message: ChatUIMessage): ChatStatusData | null {
 
 function getEmptyStateCopy(
   phase: Phase,
+  hasExistingPrd: boolean,
   agentId?: AgentRole,
   agentName?: string
 ) {
   if (phase === "requirements" && agentId === "pm") {
-    return "这一阶段要把头脑风暴里的想法沉淀成可评审 PRD。先收束目标用户、核心场景和 MVP 边界，再形成功能优先级。";
+    return hasExistingPrd
+      ? "这一阶段要把上一阶段形成的 PRD 初稿收束成可评审版本。重点是补齐缺口、收住 MVP 边界，并把优先级定清楚。"
+      : "这一阶段要把头脑风暴里的想法沉淀成可评审 PRD。先收束目标用户、核心场景和 MVP 边界，再形成功能优先级。";
   }
 
   if (phase === "requirements" && agentId === "qa") {
@@ -65,7 +68,7 @@ function getEmptyStateCopy(
 
 function getComposerPlaceholder(phase: Phase, role: AgentRole) {
   if (phase === "requirements" && role === "pm") {
-    return "例如：帮我把现有想法整理成 PRD，并先列出 P0 / P1 / P2";
+    return "例如：请基于现有 PRD 帮我收敛 MVP，并补齐 P0 / P1 / P2";
   }
 
   if (phase === "requirements" && role === "qa") {
@@ -84,6 +87,7 @@ interface ChatPanelProps {
   conversationId: string | null;
   role: AgentRole;
   phase: Phase;
+  hasExistingPrd?: boolean;
   initialMessages?: { role: "user" | "assistant"; content: string }[];
   onDocumentGenerated?: () => void;
 }
@@ -93,6 +97,7 @@ export function ChatPanel({
   conversationId,
   role,
   phase,
+  hasExistingPrd = false,
   initialMessages = [],
   onDocumentGenerated,
 }: ChatPanelProps) {
@@ -121,7 +126,7 @@ export function ChatPanel({
     experimental_throttle: STREAM_UPDATE_THROTTLE_MS,
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { projectId, conversationId, role },
+      body: { projectId, conversationId, role, phase },
     }),
     messages: seedMessages,
     onFinish: () => {
@@ -171,6 +176,7 @@ export function ChatPanel({
       <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
         <ChatTranscript
           phase={phase}
+          hasExistingPrd={hasExistingPrd}
           agentName={agent?.name}
           agentId={agent?.id}
           messages={messages}
@@ -195,6 +201,7 @@ export function ChatPanel({
 
 interface ChatTranscriptProps {
   phase: Phase;
+  hasExistingPrd: boolean;
   agentId?: AgentRole;
   agentName?: string;
   messages: ChatUIMessage[];
@@ -206,6 +213,7 @@ interface ChatTranscriptProps {
 
 const ChatTranscript = memo(function ChatTranscript({
   phase,
+  hasExistingPrd,
   agentId,
   agentName,
   messages,
@@ -232,11 +240,12 @@ const ChatTranscript = memo(function ChatTranscript({
           </Avatar>
           <h3 className="font-medium mb-1">{agentName}</h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            {getEmptyStateCopy(phase, agentId, agentName)}
+            {getEmptyStateCopy(phase, hasExistingPrd, agentId, agentName)}
           </p>
 
           {phase === "requirements" && (
             <RequirementsGuideCard
+              hasExistingPrd={hasExistingPrd}
               role={agentId ?? "pm"}
               onPromptSelect={onQuestionnaireSubmit}
             />

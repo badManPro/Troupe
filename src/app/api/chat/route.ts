@@ -94,7 +94,13 @@ function isAbortLikeError(error: unknown) {
 export async function POST(req: NextRequest) {
   ensureDb();
   const body = await req.json();
-  const { messages, projectId, conversationId, role: agentRole } = body;
+  const {
+    messages,
+    projectId,
+    conversationId,
+    role: agentRole,
+    phase,
+  } = body;
 
   const agent = getAgentById(agentRole);
   if (!agent) {
@@ -103,7 +109,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const contextDocs = await buildContext(projectId, agent);
+  const contextDocs = phase ? await buildContext(projectId, phase) : "";
 
   const userMessage = messages[messages.length - 1];
   const userText = userMessage ? extractText(userMessage) : "";
@@ -123,7 +129,7 @@ export async function POST(req: NextRequest) {
     "\n\n" +
     RESPONSE_FORMAT_GUIDANCE +
     (contextDocs
-      ? `\n\n---\n以下是该项目之前阶段的产出物，请参考：\n${contextDocs}`
+      ? `\n\n---\n以下是该项目当前已有关联产出物，请参考：\n${contextDocs}`
       : "");
 
   const providerType = await getActiveProvider();

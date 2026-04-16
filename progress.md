@@ -6,3 +6,5 @@
 - 2026-04-16: `src/components/chat/chat-panel.tsx` 已接入需求定义引导卡，同时补充了阶段化欢迎语和输入框 placeholder。
 - 2026-04-16: `src/lib/agents/roles/pm.ts` 与 `src/lib/agents/roles/qa.ts` 已增强，使角色在用户不清楚下一步时先解释阶段任务，再继续追问。
 - 2026-04-16: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
+- 2026-04-16: 根据反馈修正需求定义阶段语义。若项目已存在 PRD，需求定义阶段不再引导“重新搭骨架”，而是引导用户审查、修订并收敛现有 PRD。
+- 2026-04-16: 修复 `buildContext` 的阶段承接逻辑，聊天与文档生成现在都会读取当前阶段及之前的关联产出物，避免 PM 在需求定义阶段丢失上一阶段文档。
