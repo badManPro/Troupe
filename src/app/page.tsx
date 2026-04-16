@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { WindowHeader } from "@/components/layout/window-header";
 import {
   Dialog,
   DialogContent,
@@ -116,32 +117,43 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="app-shell">
+      <WindowHeader
+        className="sticky top-0 z-20"
+        containerClassName="window-header-leading"
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 pb-4 sm:px-8">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm shadow-primary/20">
               <Sparkles className="w-4 h-4 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold">Troupe</h1>
-            <span className="text-xs text-muted-foreground hidden sm:block">
-              AI Product Development Workstation
-            </span>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold tracking-tight">Troupe</h1>
+                <span className="hidden rounded-full border border-primary/15 bg-primary/8 px-2.5 py-1 text-[11px] font-medium text-primary/90 sm:inline-flex">
+                  AI Product Development Workstation
+                </span>
+              </div>
+              <p className="hidden text-sm text-muted-foreground sm:block">
+                把灵感、需求和交付计划收束到同一个工作空间里。
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
+              className="rounded-full"
               onClick={() => router.push("/settings")}
             >
               <Settings className="w-4 h-4" />
             </Button>
           </div>
         </div>
-      </header>
+      </WindowHeader>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="mx-auto max-w-6xl px-6 py-8 sm:px-8">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-bold">我的项目</h2>

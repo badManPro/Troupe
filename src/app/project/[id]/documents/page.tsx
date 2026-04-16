@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { WindowHeader } from "@/components/layout/window-header";
 import { MarkdownViewer } from "@/components/documents/markdown-viewer";
 import { DocumentEditor } from "@/components/documents/document-editor";
 import type { DocumentType } from "@/types";
@@ -129,45 +130,61 @@ export default function DocumentsPage({
   );
 
   return (
-    <div className="h-screen flex flex-col">
-      <header className="border-b bg-card/50 backdrop-blur-sm shrink-0">
-        <div className="px-6 py-3 flex items-center justify-between">
+    <div className="app-shell flex h-screen flex-col">
+      <WindowHeader className="shrink-0" containerClassName="window-header-leading">
+        <div className="flex items-center justify-between px-6 pb-4">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full"
               onClick={() => router.push(`/project/${id}`)}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="text-sm font-semibold">{projectName}</h1>
+              <h1 className="text-sm font-semibold tracking-tight">{projectName}</h1>
               <p className="text-xs text-muted-foreground">文档中心</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {activeDoc && (
               <>
-                <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
                   <Save className="w-3.5 h-3.5" />
                   保存
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleExport}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={handleExport}
+                >
                   <Download className="w-3.5 h-3.5" />
                   导出
                 </Button>
               </>
             )}
             {documents.length > 1 && (
-              <Button variant="outline" size="sm" onClick={handleExportAll}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={handleExportAll}
+              >
                 <Download className="w-3.5 h-3.5" />
                 全部导出
               </Button>
             )}
           </div>
         </div>
-      </header>
+      </WindowHeader>
 
       <div className="flex flex-1 min-h-0">
         {/* Left: Document List */}

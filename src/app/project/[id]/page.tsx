@@ -9,6 +9,7 @@ import { RoleTabs } from "@/components/workspace/role-tabs";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
 import { PhaseGateBar } from "@/components/workspace/phase-gate-bar";
+import { WindowHeader } from "@/components/layout/window-header";
 import type { Phase, AgentRole } from "@/types";
 import { PHASES, getNextPhase } from "@/types";
 import type { PersistedChatMessage } from "@/types/chat";
@@ -192,34 +193,37 @@ export default function ProjectWorkspace({
   if (!project) return null;
 
   return (
-    <div className="h-screen flex flex-col">
-      <header className="border-b bg-card/50 backdrop-blur-sm shrink-0">
-        <div className="px-4 py-2.5 flex items-center gap-3">
+    <div className="app-shell flex h-screen flex-col">
+      <WindowHeader className="shrink-0" containerClassName="window-header-leading">
+        <div className="flex items-center gap-3 px-4 pb-3">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 rounded-full"
             onClick={() => router.push("/")}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/20">
               <Sparkles className="w-3 h-3 text-primary-foreground" />
             </div>
-            <h1 className="text-sm font-semibold">{project.name}</h1>
+            <div>
+              <h1 className="text-sm font-semibold tracking-tight">{project.name}</h1>
+              <p className="text-xs text-muted-foreground">AI 产品工作台</p>
+            </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
+            className="rounded-full"
             onClick={() => router.push(`/project/${id}/documents`)}
-            className="text-xs"
           >
             <FileText className="w-3.5 h-3.5" />
             文档中心
           </Button>
         </div>
-      </header>
+      </WindowHeader>
 
       <div className="flex flex-1 min-h-0">
         <PhaseSidebar

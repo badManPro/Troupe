@@ -109,6 +109,88 @@
   }
 }
 
+@layer utilities {
+  .app-shell {
+    min-height: 100vh;
+    background-color: var(--background);
+    background-image:
+      radial-gradient(
+        circle at top left,
+        oklch(0.92 0.07 266 / 0.4),
+        transparent 34%
+      ),
+      linear-gradient(180deg, oklch(0.995 0.004 260) 0%, var(--background) 260px);
+  }
+
+  .dark .app-shell {
+    background-image:
+      radial-gradient(
+        circle at top left,
+        oklch(0.38 0.1 266 / 0.26),
+        transparent 30%
+      ),
+      linear-gradient(180deg, oklch(0.17 0.02 260) 0%, var(--background) 280px);
+  }
+
+  .window-header {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid oklch(0.88 0.01 260 / 0.82);
+    background:
+      linear-gradient(180deg, oklch(0.86 0.05 266 / 0.18), transparent),
+      oklch(0.985 0.004 260 / 0.8);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+  }
+
+  .dark .window-header {
+    border-bottom-color: oklch(0.28 0.015 260 / 0.92);
+    background:
+      linear-gradient(180deg, oklch(0.44 0.11 266 / 0.16), transparent),
+      oklch(0.14 0.015 260 / 0.82);
+  }
+
+  .window-header::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.82 0.03 266 / 0.55),
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  .dark .window-header::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.48 0.08 266 / 0.38),
+      transparent
+    );
+  }
+
+  .window-header-drag-region {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 2.75rem;
+    z-index: 0;
+  }
+
+  .window-header-inner {
+    position: relative;
+    z-index: 1;
+    padding-top: 2.75rem;
+  }
+
+  .window-header-leading {
+    padding-left: 5.5rem;
+  }
+}
+
 @keyframes animateIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }

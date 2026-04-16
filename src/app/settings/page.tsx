@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { WindowHeader } from "@/components/layout/window-header";
 import {
   Card,
   CardContent,
@@ -204,19 +205,28 @@ export default function SettingsPage() {
   // codexModels loaded dynamically from /api/codex/models
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center gap-3">
+    <div className="app-shell">
+      <WindowHeader
+        className="sticky top-0 z-20"
+        containerClassName="window-header-leading"
+      >
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-6 pb-4">
           <Button
             variant="ghost"
             size="icon"
+            className="rounded-full"
             onClick={() => router.push("/")}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <h1 className="text-lg font-semibold">设置</h1>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">设置</h1>
+            <p className="text-sm text-muted-foreground">
+              配置模型、鉴权和本地工作环境
+            </p>
+          </div>
         </div>
-      </header>
+      </WindowHeader>
 
       <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         {/* Provider Selector */}
