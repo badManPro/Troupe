@@ -10,6 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
+import { QuestionnaireCard } from "@/components/chat/questionnaire-card";
+import { extractQuestionnaireFromMessage } from "@/lib/chat/questionnaire";
 import type { AgentRole } from "@/types";
 import type { ChatStatusData, ChatUIMessage } from "@/types/chat";
 import { getAgentById } from "@/lib/agents/registry";
@@ -95,6 +97,11 @@ export function ChatPanel({
     setInputValue("");
   };
 
+  const handleQuestionnaireSubmit = (message: string) => {
+    if (status === "streaming" || status === "submitted") return;
+    sendMessage({ text: message });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -130,10 +137,21 @@ export function ChatPanel({
             </div>
           )}
 
-          {messages.map((message) => {
+          {messages.map((message, index) => {
             const text = getMessageText(message);
             const statusPart = getMessageStatus(message);
             const shouldRender = Boolean(text) || Boolean(statusPart);
+            const questionnaire =
+              message.role === "assistant" && text
+                ? extractQuestionnaireFromMessage(text)
+                : null;
+            const hasLaterUserReply = messages
+              .slice(index + 1)
+              .some((candidate) => candidate.role === "user");
+            const canShowQuestionnaire =
+              Boolean(questionnaire) &&
+              !hasLaterUserReply &&
+              !(isGenerating && index === messages.length - 1);
 
             if (!shouldRender) return null;
 
@@ -217,6 +235,14 @@ export function ChatPanel({
                         <span className="h-1.5 w-1.5 rounded-full bg-current/50 animate-pulse" />
                       </div>
                     )
+                  )}
+
+                  {canShowQuestionnaire && questionnaire && (
+                    <QuestionnaireCard
+                      questionnaire={questionnaire}
+                      disabled={isGenerating}
+                      onSubmit={handleQuestionnaireSubmit}
+                    />
                   )}
                 </div>
               </div>

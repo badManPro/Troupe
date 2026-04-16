@@ -14,6 +14,32 @@ export interface ChatStatusData {
   detail?: string;
 }
 
+export type ChatQuestionFieldType =
+  | "single_choice"
+  | "short_text"
+  | "long_text";
+
+export interface ChatQuestionOption {
+  id: string;
+  label: string;
+}
+
+export interface ChatQuestion {
+  id: string;
+  prompt: string;
+  description?: string;
+  fieldType: ChatQuestionFieldType;
+  placeholder?: string;
+  options?: ChatQuestionOption[];
+  required: boolean;
+}
+
+export interface ChatQuestionnaire {
+  title: string;
+  description?: string;
+  questions: ChatQuestion[];
+}
+
 export type ChatUIMessage = UIMessage<
   never,
   {
