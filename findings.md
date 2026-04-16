@@ -1,12 +1,13 @@
 # Findings
 
-- 当前会话恢复链路已经存在：项目页 [src/app/project/[id]/page.tsx](/Users/casper/Documents/try/Troupe/src/app/project/[id]/page.tsx) 会按 `project + phase + role` 获取 conversation，再调用 [src/app/api/projects/[id]/messages/route.ts](/Users/casper/Documents/try/Troupe/src/app/api/projects/[id]/messages/route.ts) 拉取消息。
-- 聊天消息已经真正落库：[src/app/api/chat/route.ts](/Users/casper/Documents/try/Troupe/src/app/api/chat/route.ts) 在用户发送和 assistant 完成回复时都会写入 `messages` 表；`conversations` 和 `messages` 表定义见 [src/lib/db/schema.ts](/Users/casper/Documents/try/Troupe/src/lib/db/schema.ts)。
-- 丢失现象更像“换了数据库文件”而不是“没有保存消息”：数据库默认路径在 [src/lib/db/index.ts](/Users/casper/Documents/try/Troupe/src/lib/db/index.ts) 里取 `process.cwd()/troupe.db`。
-- 迁移目录也同样依赖 `process.cwd()`：[src/lib/db/migrate.ts](/Users/casper/Documents/try/Troupe/src/lib/db/migrate.ts) 默认读取 `process.cwd()/drizzle`。
-- 对桌面应用来说，重启后的工作目录不稳定是常见情况；一旦 `cwd` 变化，应用就会打开新的空 SQLite，前端虽然仍会执行恢复逻辑，但只能读到空项目/空会话，表现为“历史没了”。
-- 仓库根目录当前已存在被忽略的旧库文件 `troupe.db`，因此修复时需要兼容已有数据，避免把开发期旧库直接“迁丢”；本轮实现会优先复用当前目录或检测到的项目根目录中的旧库。
-- Next 的 `.next/standalone` 构建产物目录里也会复制出 `package.json`、`drizzle`，甚至可能带一份 `troupe.db`；数据库路径选择必须显式避开这个目录，否则会继续把构建产物当成真实用户数据源。
-- 返回项目列表后再进入时，真正导致“记录没了”的更直接问题在 [src/app/project/[id]/page.tsx](/Users/casper/Documents/try/Troupe/src/app/project/[id]/page.tsx)：当前逻辑先 `setConversationId(conv.id)`，随后才异步拉取消息并 `setInitialMessages(...)`。
-- [src/components/chat/chat-panel.tsx](/Users/casper/Documents/try/Troupe/src/components/chat/chat-panel.tsx) 使用 `useChat({ messages: seedMessages })`；`messages` 只在 `Chat` 实例初始化时作为初始值使用，后续 `initialMessages` prop 改变并不会自动把历史消息补回去。
-- 这意味着页面在“会话 id 已有、消息还没回来”的瞬间就会挂载新的 `ChatPanel`，把聊天状态初始化为空，随后即使历史消息接口返回了，`useChat` 也不会自动同步，因此用户看到的是空白对话。
+- 聊天消息渲染入口在 [src/components/chat/chat-markdown.tsx](/Users/casper/Documents/try/Troupe/src/components/chat/chat-markdown.tsx)，文档渲染入口在 [src/components/documents/markdown-viewer.tsx](/Users/casper/Documents/try/Troupe/src/components/documents/markdown-viewer.tsx)；两者都基于 `react-markdown`，适合在标题节点上挂通用按钮。
+- AI 生成的正式文档本来就包含明显章节标题，例如 [src/app/api/documents/generate/route.ts](/Users/casper/Documents/try/Troupe/src/app/api/documents/generate/route.ts) 对 `user_flow` 文档已要求输出流程相关内容，因此“标题旁按钮”方案与现有内容结构兼容。
+- 新增的章节抽取逻辑基于 Markdown 标题分段，并通过“标题关键词 + 有序列表/箭头/流程词”判断是否显示预览按钮，不会给所有标题都加按钮。
+- 新的 [src/app/api/diagram-preview/route.ts](/Users/casper/Documents/try/Troupe/src/app/api/diagram-preview/route.ts) 复用了当前激活的 AI provider；这意味着无论用户当前选的是 Codex 还是 OpenAI，预览图生成都会走同一套配置。
+- 预览图是按需生成的，没有改动消息或文档原文；按钮点开时才请求生成 Mermaid，避免无意义地为每条 AI 输出预先生成图片。
+- Mermaid 前端渲染依赖需要真实安装到当前 `pnpm` 风格的 `node_modules` 中，仅更新 `package.json/package-lock.json` 不够。
+- 误判根因在于旧规则把“标题包含流程词”与“正文里有多个列表项”混在一起判断，导致像“产品概述”“用户故事”“功能清单”这种普通章节也被判成可视化候选。
+- 真实内容验证后，新的筛选规则把同一条 AI 输出中的候选范围收敛到了 `业务流程` 章节；其他章节均不再显示按钮。
+- 已通过本地运行中的 `Next` 接口直接验证 `/api/diagram-preview`，它可以返回有效 Mermaid JSON，不是后端完全没生成图。
+- Mermaid 渲染组件改成了浏览器端动态 `import("mermaid")`，比静态顶层导入更稳，能减少客户端实际打开弹窗时不出图的风险；渲染失败时也会直接展示错误和 Mermaid 源码，便于继续排查。
+- 用户截图对应的直接根因是 [src/components/markdown/section-diagram-preview-button.tsx](/Users/casper/Documents/try/Troupe/src/components/markdown/section-diagram-preview-button.tsx) 中“打开弹窗”和“发起预览请求”分离了：按钮只 `setOpen(true)`，请求却依赖 `onOpenChange`，在当前受控用法下不会触发，因此弹窗里既没有 loading 也没有 error，只剩空白主体。

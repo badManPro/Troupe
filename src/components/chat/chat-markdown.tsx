@@ -1,8 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { createMarkdownDiagramSectionMap } from "@/lib/markdown/diagram-preview";
+import { MarkdownHeadingWithPreview } from "@/components/markdown/markdown-heading-with-preview";
 
 interface ChatMarkdownProps {
   content: string;
@@ -10,6 +13,18 @@ interface ChatMarkdownProps {
 }
 
 export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
+  const sectionMap = useMemo(
+    () => createMarkdownDiagramSectionMap(content),
+    [content]
+  );
+
+  const getSectionByNode = (node?: {
+    position?: { start?: { line?: number } };
+  }) => {
+    const line = node?.position?.start?.line;
+    return typeof line === "number" ? sectionMap.get(line) : undefined;
+  };
+
   return (
     <div
       className={cn(
@@ -35,6 +50,36 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          h1: ({ children, node }) => (
+            <MarkdownHeadingWithPreview
+              as="h1"
+              wrapperClassName="mb-2 mt-5 first:mt-0"
+              headingClassName="text-xl font-semibold text-foreground"
+              section={getSectionByNode(node)}
+            >
+              {children}
+            </MarkdownHeadingWithPreview>
+          ),
+          h2: ({ children, node }) => (
+            <MarkdownHeadingWithPreview
+              as="h2"
+              wrapperClassName="mb-2 mt-5"
+              headingClassName="text-lg font-semibold text-foreground"
+              section={getSectionByNode(node)}
+            >
+              {children}
+            </MarkdownHeadingWithPreview>
+          ),
+          h3: ({ children, node }) => (
+            <MarkdownHeadingWithPreview
+              as="h3"
+              wrapperClassName="mb-2 mt-4"
+              headingClassName="text-base font-semibold text-foreground"
+              section={getSectionByNode(node)}
+            >
+              {children}
+            </MarkdownHeadingWithPreview>
+          ),
           p: ({ children }) => <p>{children}</p>,
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,

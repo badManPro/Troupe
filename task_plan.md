@@ -1,14 +1,14 @@
 # Task Plan
 
 ## Goal
-修复 Troupe 在返回项目列表并重新进入项目后丢失 AI 对话记录的问题，确保同一项目下按阶段/角色保存的对话消息能被正确恢复，并继续作为后续聊天上下文。
+实现 AI 输出 Markdown 章节的“预览图”能力：保留正文内容，在合适标题旁显示预览按钮，点击后将该章节按需转换为 Mermaid 流程图并在弹窗中展示，覆盖聊天消息与文档预览两条链路。
 
 ## Phases
-- [complete] 盘点聊天持久化链路，确认会话与消息是否已落库，以及恢复入口是否存在。
-- [complete] 复核“返回后再进入”场景，确认历史消息丢失是否由前端恢复时序竞态引起。
-- [complete] 修复项目页会话恢复时序，避免 `ChatPanel` 以空消息过早初始化。
-- [complete] 运行类型校验并确认不会影响现有项目、会话与消息接口。
-- [complete] 记录兼容策略与剩余风险。
+- [complete] 盘点聊天与文档 Markdown 渲染链路，确定标题按钮挂载点。
+- [complete] 设计章节抽取与候选判定规则，确保不是只支持单份 PRD。
+- [complete] 新增后端接口，复用当前 AI provider 将章节即时转换为 Mermaid 流程图。
+- [complete] 新增 Mermaid 渲染弹窗，并接入聊天与文档的标题预览按钮。
+- [complete] 运行类型校验，确认新增功能不会破坏现有渲染链路。
 
 ## Errors Encountered
-- 暂无。
+- `npm install mermaid` 命中 `better-sqlite3` 的 `ENOTDIR rename` 错误，改为使用 `pnpm add mermaid` 完成实际依赖安装。

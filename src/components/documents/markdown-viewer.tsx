@@ -1,8 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { createMarkdownDiagramSectionMap } from "@/lib/markdown/diagram-preview";
+import { MarkdownHeadingWithPreview } from "@/components/markdown/markdown-heading-with-preview";
 
 interface MarkdownViewerProps {
   content: string;
@@ -10,19 +13,52 @@ interface MarkdownViewerProps {
 }
 
 export function MarkdownViewer({ content, className }: MarkdownViewerProps) {
+  const sectionMap = useMemo(
+    () => createMarkdownDiagramSectionMap(content),
+    [content]
+  );
+
+  const getSectionByNode = (node?: {
+    position?: { start?: { line?: number } };
+  }) => {
+    const line = node?.position?.start?.line;
+    return typeof line === "number" ? sectionMap.get(line) : undefined;
+  };
+
   return (
     <div className={cn("prose prose-sm dark:prose-invert max-w-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => (
-            <h1 className="text-xl font-bold mt-6 mb-3 first:mt-0">{children}</h1>
+          h1: ({ children, node }) => (
+            <MarkdownHeadingWithPreview
+              as="h1"
+              wrapperClassName="mb-3 mt-6 first:mt-0"
+              headingClassName="text-xl font-bold"
+              section={getSectionByNode(node)}
+            >
+              {children}
+            </MarkdownHeadingWithPreview>
           ),
-          h2: ({ children }) => (
-            <h2 className="text-lg font-semibold mt-5 mb-2">{children}</h2>
+          h2: ({ children, node }) => (
+            <MarkdownHeadingWithPreview
+              as="h2"
+              wrapperClassName="mb-2 mt-5"
+              headingClassName="text-lg font-semibold"
+              section={getSectionByNode(node)}
+            >
+              {children}
+            </MarkdownHeadingWithPreview>
           ),
-          h3: ({ children }) => (
-            <h3 className="text-base font-semibold mt-4 mb-2">{children}</h3>
+          h3: ({ children, node }) => (
+            <MarkdownHeadingWithPreview
+              as="h3"
+              wrapperClassName="mb-2 mt-4"
+              headingClassName="text-base font-semibold"
+              section={getSectionByNode(node)}
+            >
+              {children}
+            </MarkdownHeadingWithPreview>
           ),
           p: ({ children }) => (
             <p className="mb-2 leading-relaxed">{children}</p>
