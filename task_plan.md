@@ -1,13 +1,13 @@
 # Task Plan
 
 ## Goal
-在产品经理的头脑风暴对话里加入“收敛度提示”，让用户能看到当前进度、可停线和理想线，并知道还差什么才适合停止继续聊天。
+分析 Troupe 中“头脑风暴 -> 需求定义”的衔接问题，并在需求定义模块内加入明确指引，让用户一进入阶段就知道要做什么、需要商讨什么、应该产出什么。
 
 ## Phases
-- [complete] 盘点聊天页、阶段栏和现有流式状态，确认“脑暴收敛度”应挂载在聊天区顶部而不是复用模型状态条。
-- [complete] 实现基于对话内容的轻量收敛度分析，并在 `brainstorm + pm` 场景展示当前进度、可停线、理想线和缺口项。
-- [complete] 运行类型校验，确认新 UI 不影响现有聊天恢复和项目页刷新逻辑。
+- [complete] 盘点项目工作流、需求定义阶段角色职责、聊天空态和文档生成逻辑，确认问题不在数据结构而在阶段引导缺失。
+- [complete] 为 `requirements` 阶段设计首屏引导方案，明确模块目标、讨论主题、阶段产出和可直接开聊的起手问题。
+- [complete] 实现需求定义引导卡、阶段化欢迎语和输入框提示文案，并增强 PM / QA 的阶段提示词。
+- [complete] 运行类型校验，确认新增引导不影响现有聊天流和会话恢复逻辑。
 
 ## Errors Encountered
-- `src/app/project/[id]/page.tsx` 中 `handleDocumentGenerated` 引用了尚未声明的 `fetchProject`。调整回调声明顺序后解决。
-- `src/lib/chat/brainstorm-progress.ts` 中使用了 `s` 正则标志，当前 TypeScript 目标不接受。改为 `[\s\S]` 跨行匹配后解决。
+- `ChatTranscript` 中的 `agentId` 初始仍按 `string` 处理，导致传给 `RequirementsGuideCard` 时类型不匹配。收紧为 `AgentRole` 后解决。

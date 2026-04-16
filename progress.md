@@ -1,8 +1,8 @@
 # Progress
 
-- 2026-04-16: 新任务开始，目标是在头脑风暴对话中给用户明确的“当前进度 / 可停线 / 理想线”反馈，避免无限继续聊天。
-- 2026-04-16: 已确认现有聊天页只有模型流式状态，没有业务收敛状态；决定将新提示固定放在聊天区顶部，只在 `brainstorm + pm` 场景显示。
-- 2026-04-16: 新增 `src/lib/chat/brainstorm-progress.ts`，基于目标用户、痛点问题、核心链路、价值主张、MVP 范围、差异化、结构化沉淀 7 项信号计算脑暴收敛度。
-- 2026-04-16: 新增 `src/components/chat/brainstorm-progress-card.tsx`，展示当前进度、可停线、理想线、预计还需几轮，以及已覆盖/未覆盖的关键项。
-- 2026-04-16: `ChatPanel` 已接入该收敛度卡片，`ProjectWorkspace` 会在对话完成后刷新项目数据，保证后续结构化产出能及时反映在页面上。
+- 2026-04-16: 新任务开始，目标是解决“用户从头脑风暴进入需求定义后，不知道该做什么”的体验断层。
+- 2026-04-16: 已确认现有 `requirements` 阶段的知识主要藏在 PM / QA 提示词里，前端没有显式展示阶段目标、讨论主题和产出物。
+- 2026-04-16: 新增 `src/components/chat/requirements-guide-card.tsx`，在需求定义阶段空态展示“模块要做什么 / 需要商讨什么 / 完成后产出什么”以及一组可直接发送的起手 prompt。
+- 2026-04-16: `src/components/chat/chat-panel.tsx` 已接入需求定义引导卡，同时补充了阶段化欢迎语和输入框 placeholder。
+- 2026-04-16: `src/lib/agents/roles/pm.ts` 与 `src/lib/agents/roles/qa.ts` 已增强，使角色在用户不清楚下一步时先解释阶段任务，再继续追问。
 - 2026-04-16: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。

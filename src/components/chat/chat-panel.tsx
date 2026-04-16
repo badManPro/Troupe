@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import { QuestionnaireCard } from "@/components/chat/questionnaire-card";
 import { BrainstormProgressCard } from "@/components/chat/brainstorm-progress-card";
+import { RequirementsGuideCard } from "@/components/chat/requirements-guide-card";
 import {
   analyzeBrainstormProgress,
   shouldShowBrainstormProgress,
@@ -40,6 +41,42 @@ function getMessageText(message: ChatUIMessage): string {
 function getMessageStatus(message: ChatUIMessage): ChatStatusData | null {
   const statusParts = message.parts.filter(isChatStatusPart);
   return statusParts.length > 0 ? statusParts[statusParts.length - 1].data : null;
+}
+
+function getEmptyStateCopy(
+  phase: Phase,
+  agentId?: AgentRole,
+  agentName?: string
+) {
+  if (phase === "requirements" && agentId === "pm") {
+    return "这一阶段要把头脑风暴里的想法沉淀成可评审 PRD。先收束目标用户、核心场景和 MVP 边界，再形成功能优先级。";
+  }
+
+  if (phase === "requirements" && agentId === "qa") {
+    return "这一阶段由 QA 帮你补齐需求缺口。重点检查边界场景、异常流程、验收标准和后续实现风险。";
+  }
+
+  if (agentId === "pm") {
+    return "你好！我是产品经理。告诉我你的想法，不管多模糊都没关系，我来帮你一步步梳理清楚。";
+  }
+
+  return `你好！我是${agentName}。让我们一起把方案推进下去。`;
+}
+
+function getComposerPlaceholder(phase: Phase, role: AgentRole) {
+  if (phase === "requirements" && role === "pm") {
+    return "例如：帮我把现有想法整理成 PRD，并先列出 P0 / P1 / P2";
+  }
+
+  if (phase === "requirements" && role === "qa") {
+    return "例如：请从 QA 角度补验收标准、边界场景和风险点";
+  }
+
+  if (phase === "brainstorm" && role === "pm") {
+    return "输入你的产品想法，我来帮你一起收敛...";
+  }
+
+  return "输入你的想法或回复...";
 }
 
 interface ChatPanelProps {
@@ -106,6 +143,10 @@ export function ChatPanel({
 
     return analyzeBrainstormProgress(messages);
   }, [messages, phase, role]);
+  const composerPlaceholder = useMemo(
+    () => getComposerPlaceholder(phase, role),
+    [phase, role]
+  );
 
   const handleSend = useCallback(
     (message: string) => {
@@ -129,6 +170,7 @@ export function ChatPanel({
 
       <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
         <ChatTranscript
+          phase={phase}
           agentName={agent?.name}
           agentId={agent?.id}
           messages={messages}
@@ -142,13 +184,18 @@ export function ChatPanel({
         />
       </ScrollArea>
 
-      <ChatComposer disabled={isGenerating} onSend={handleSend} />
+      <ChatComposer
+        disabled={isGenerating}
+        placeholder={composerPlaceholder}
+        onSend={handleSend}
+      />
     </div>
   );
 }
 
 interface ChatTranscriptProps {
-  agentId?: string;
+  phase: Phase;
+  agentId?: AgentRole;
   agentName?: string;
   messages: ChatUIMessage[];
   isGenerating: boolean;
@@ -158,6 +205,7 @@ interface ChatTranscriptProps {
 }
 
 const ChatTranscript = memo(function ChatTranscript({
+  phase,
   agentId,
   agentName,
   messages,
@@ -184,10 +232,15 @@ const ChatTranscript = memo(function ChatTranscript({
           </Avatar>
           <h3 className="font-medium mb-1">{agentName}</h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            {agentId === "pm"
-              ? "你好！我是产品经理。告诉我你的想法，不管多模糊都没关系，我来帮你一步步梳理清楚。"
-              : `你好！我是${agentName}。让我们一起把方案推进下去。`}
+            {getEmptyStateCopy(phase, agentId, agentName)}
           </p>
+
+          {phase === "requirements" && (
+            <RequirementsGuideCard
+              role={agentId ?? "pm"}
+              onPromptSelect={onQuestionnaireSubmit}
+            />
+          )}
         </div>
       )}
 
@@ -351,11 +404,13 @@ const StreamingMessageText = memo(function StreamingMessageText({
 
 interface ChatComposerProps {
   disabled: boolean;
+  placeholder: string;
   onSend: (message: string) => void;
 }
 
 const ChatComposer = memo(function ChatComposer({
   disabled,
+  placeholder,
   onSend,
 }: ChatComposerProps) {
   const [inputValue, setInputValue] = useState("");
@@ -385,7 +440,7 @@ const ChatComposer = memo(function ChatComposer({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入你的想法或回复..."
+          placeholder={placeholder}
           className="min-h-[44px] max-h-32 resize-none"
           rows={1}
           disabled={disabled}
