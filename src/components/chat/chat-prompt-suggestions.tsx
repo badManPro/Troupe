@@ -4,7 +4,7 @@ import { memo } from "react";
 import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { QuickStartAction } from "@/lib/chat/requirements-guide";
+import type { QuickStartAction } from "@/lib/chat/phase-chat-guidance";
 import { cn } from "@/lib/utils";
 
 interface ChatPromptSuggestionsProps {

@@ -1,14 +1,13 @@
 # Task Plan
 
 ## Goal
-把需求定义阶段的“你可以这样开始”改成输入框上方的持续建议条，只在 AI 空闲时展示，并根据已执行过的建议自动收起剩余项。
+把聊天区顶部的“对话建议”和“当前轮需产出材料/进度”做成所有阶段都可复用的统一模块，按 phase/role 动态适配，而不是只覆盖 `brainstorm` 和 `requirements`。
 
 ## Phases
-- [complete] 盘点需求定义阶段的引导卡、聊天输入区和历史消息结构，确认起手建议当前只会在空态出现一次。
-- [complete] 抽离需求定义阶段的引导配置，补充“建议已执行”的判定逻辑，并确保只有在 AI 回复后才视为完成。
-- [complete] 在输入框上方实现轻量建议条，AI 生成中隐藏，生成完成后仅展示尚未执行过的建议。
-- [complete] 运行类型检查并记录验证结果，同时记录 ESLint 的仓库级配置异常。
+- [complete] 盘点现有聊天引导、进度卡、阶段/角色/产出物配置，确认哪些信息适合收敛到统一 schema。
+- [complete] 设计并实现统一的阶段聊天配置层，覆盖每个 phase/role 的目标、建议动作、讨论重点和应产出材料。
+- [complete] 抽出通用顶部模块与建议条，让聊天面板按当前 phase/role 动态渲染，并保留头脑风暴专用进度分析能力。
+- [complete] 运行类型检查，更新 findings/progress，并记录这次抽象的边界和后续可继续演进的点。
 
 ## Errors Encountered
-- `rg` 直接读取 `src/app/project/[id]/page.tsx` 时，`zsh` 把方括号当成了 glob。改成带引号的路径后解决。
-- `./node_modules/.bin/eslint ...` 在仓库当前配置下报 `TypeError: Converting circular structure to JSON`，属于现有 ESLint 配置问题，不是这次改动引入的类型错误。
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false` 首次失败，原因是新 checklist 进度分析里 `state` 被推断为普通 `string`。补上显式字面量类型后已解决。

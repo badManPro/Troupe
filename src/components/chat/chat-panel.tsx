@@ -20,20 +20,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import { QuestionnaireCard } from "@/components/chat/questionnaire-card";
-import { BrainstormProgressCard } from "@/components/chat/brainstorm-progress-card";
 import { ChatPromptSuggestions } from "@/components/chat/chat-prompt-suggestions";
-import { RequirementsGuideCard } from "@/components/chat/requirements-guide-card";
-import {
-  analyzeBrainstormProgress,
-  shouldShowBrainstormProgress,
-} from "@/lib/chat/brainstorm-progress";
+import { PhaseContextCard } from "@/components/chat/phase-context-card";
 import { extractQuestionnaireFromMessage } from "@/lib/chat/questionnaire";
 import {
+  analyzePhaseProgress,
+  getPhaseChatGuide,
   getRemainingQuickStartActions,
-  getRequirementsGuide,
   type QuickStartAction,
-} from "@/lib/chat/requirements-guide";
-import type { AgentRole, Phase } from "@/types";
+} from "@/lib/chat/phase-chat-guidance";
+import type { AgentRole, DocumentType, Phase } from "@/types";
 import type {
   ChatStatusData,
   ChatUIMessage,
@@ -115,6 +111,7 @@ interface ChatPanelProps {
   role: AgentRole;
   phase: Phase;
   hasExistingPrd?: boolean;
+  availableDocumentTypes?: DocumentType[];
   initialMessages?: PersistedChatMessage[];
   onDocumentGenerated?: () => void;
 }
@@ -125,6 +122,7 @@ export function ChatPanel({
   role,
   phase,
   hasExistingPrd = false,
+  availableDocumentTypes = [],
   initialMessages = [],
   onDocumentGenerated,
 }: ChatPanelProps) {
@@ -165,38 +163,35 @@ export function ChatPanel({
   }, [messages]);
 
   const isGenerating = status === "streaming" || status === "submitted";
-  const brainstormProgress = useMemo(() => {
-    if (!shouldShowBrainstormProgress(phase, role)) {
-      return null;
-    }
-
-    return analyzeBrainstormProgress(messages);
-  }, [messages, phase, role]);
-  const requirementsGuide = useMemo(() => {
-    if (phase !== "requirements") {
-      return null;
-    }
-
-    return getRequirementsGuide(role, hasExistingPrd);
-  }, [hasExistingPrd, phase, role]);
+  const phaseGuide = useMemo(
+    () => getPhaseChatGuide(phase, role, { hasExistingPrd }),
+    [hasExistingPrd, phase, role]
+  );
+  const phaseProgress = useMemo(
+    () =>
+      analyzePhaseProgress(
+        phase,
+        role,
+        phaseGuide,
+        messages,
+        availableDocumentTypes
+      ),
+    [availableDocumentTypes, messages, phase, phaseGuide, role]
+  );
   const remainingQuickStartActions = useMemo(() => {
-    if (!requirementsGuide) {
-      return [] satisfies QuickStartAction[];
-    }
-
-    return getRemainingQuickStartActions(messages, requirementsGuide.actions);
-  }, [messages, requirementsGuide]);
+    return getRemainingQuickStartActions(messages, phaseGuide.actions);
+  }, [messages, phaseGuide]);
   const composerPlaceholder = useMemo(
     () => getComposerPlaceholder(phase, role),
     [phase, role]
   );
   const composerSuggestionTitle = useMemo(() => {
-    if (!requirementsGuide || remainingQuickStartActions.length === 0) {
+    if (remainingQuickStartActions.length === 0) {
       return "";
     }
 
     return messages.length === 0 ? "你可以这样开始" : "你还可以这样继续";
-  }, [messages.length, remainingQuickStartActions.length, requirementsGuide]);
+  }, [messages.length, remainingQuickStartActions.length]);
 
   const handleSend = useCallback(
     (message: string) => {
@@ -260,7 +255,13 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {brainstormProgress && <BrainstormProgressCard analysis={brainstormProgress} />}
+      <PhaseContextCard
+        phase={phase}
+        guide={phaseGuide}
+        progress={phaseProgress}
+        hasMessages={messages.length > 0}
+        storageKey={`${phase}-${role}`}
+      />
 
       <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
         <ChatTranscript
@@ -389,13 +390,6 @@ const ChatTranscript = memo(function ChatTranscript({
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             {getEmptyStateCopy(phase, hasExistingPrd, agentId, agentName)}
           </p>
-
-          {phase === "requirements" && (
-            <RequirementsGuideCard
-              hasExistingPrd={hasExistingPrd}
-              role={agentId ?? "pm"}
-            />
-          )}
         </div>
       )}
 

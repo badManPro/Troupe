@@ -1,9 +1,9 @@
 # Progress
 
-- 2026-04-16: 读取现有聊天面板、需求定义引导卡和问卷/收敛度逻辑，确认“你可以这样开始”只在空态出现一次。
-- 2026-04-16: 新增 `src/lib/chat/requirements-guide.ts`，把需求定义阶段的 guide 配置和 quick actions 抽成共享数据源，并加入基于历史消息的剩余建议计算逻辑。
-- 2026-04-16: 新增 `src/components/chat/chat-prompt-suggestions.tsx`，在输入框上方渲染轻量建议条，展示剩余可执行建议。
-- 2026-04-16: 更新 `src/components/chat/chat-panel.tsx`，让建议条只在需求定义阶段且 AI 空闲时显示，并在 AI 回复后自动移除已执行过的建议。
-- 2026-04-16: 更新 `src/components/chat/requirements-guide-card.tsx`，保留阶段目标/讨论主题/产出物说明，把起手动作从空态大卡片移到输入框区域。
-- 2026-04-16: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
-- 2026-04-16: `./node_modules/.bin/eslint ...` 失败，报错为 `TypeError: Converting circular structure to JSON`；已确认属于仓库现有 ESLint 配置问题。
+- 2026-04-17: 读取聊天面板、需求定义引导、头脑风暴进度卡、阶段/角色配置和文档目录，确认顶部模块目前只覆盖少数阶段且实现分散。
+- 2026-04-17: 明确本轮改造方向为“phase/role 驱动的统一聊天引导层 + 通用顶部模块”，并记录到 task_plan/findings。
+- 2026-04-17: 新增 `src/lib/chat/phase-chat-guidance.ts`，统一承载所有 phase/role 的目标、讨论重点、材料、建议动作与进度分析逻辑。
+- 2026-04-17: 新增 `src/components/chat/phase-context-card.tsx`，把“当前轮要做什么 / 要讨论什么 / 应沉淀什么 / 当前进度”统一成可折叠顶部模块。
+- 2026-04-17: 更新 `src/components/chat/chat-panel.tsx` 与 `src/app/project/[id]/page.tsx`，让聊天面板对所有阶段展示顶部导航卡和输入区建议条，并接入项目文档状态。
+- 2026-04-17: 删除 `src/components/chat/requirements-guide-card.tsx`、`src/components/chat/brainstorm-progress-card.tsx` 和 `src/lib/chat/requirements-guide.ts`，移除旧的阶段专用双轨实现。
+- 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。

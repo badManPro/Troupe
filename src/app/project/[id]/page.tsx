@@ -10,7 +10,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
 import { PhaseGateBar } from "@/components/workspace/phase-gate-bar";
 import { WindowHeader } from "@/components/layout/window-header";
-import type { Phase, AgentRole } from "@/types";
+import type { Phase, AgentRole, DocumentType } from "@/types";
 import { PHASES, getNextPhase } from "@/types";
 import type { PersistedChatMessage } from "@/types/chat";
 
@@ -20,7 +20,7 @@ interface ProjectData {
   description: string;
   phase: Phase;
   gates: { id: string; phase: string; status: string; checklist: string }[];
-  documents: any[];
+  documents: { id: string; type: DocumentType; phase: string }[];
 }
 
 export default function ProjectWorkspace({
@@ -256,6 +256,7 @@ export default function ProjectWorkspace({
                 role={activeRole}
                 phase={currentPhase}
                 hasExistingPrd={project.documents.some((doc) => doc.type === "prd")}
+                availableDocumentTypes={project.documents.map((doc) => doc.type)}
                 initialMessages={initialMessages}
                 onDocumentGenerated={handleDocumentGenerated}
               />

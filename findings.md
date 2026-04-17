@@ -1,8 +1,10 @@
 # Findings
 
-- 需求定义阶段原先的“你可以直接这样开始”按钮只存在于空态大卡片里；一旦用户发过消息，这组建议就消失，无法在对话过程中继续充当提示。
-- 更合适的挂载点是输入框上方的 composer 区域，因为它天然位于“下一步要说什么”的决策位置，而且可以和 `isGenerating` 直接联动。
-- 为了避免 UI 与文案配置分散，需求定义阶段的 guide 文案与 quick actions 需要从 `RequirementsGuideCard` 中抽离到共享的 chat lib，供空态说明卡和底部建议条共同复用。
-- “已执行过的建议”不能只看用户是否发过相关话术，还要确认后面已经有 AI 回复；否则用户中断生成后，建议会被过早隐藏。
-- 动作匹配词需要保持唯一，像“收敛 MVP”这种通用短语会同时命中多个按钮，必须收紧为更具体的短语，避免一次点击吞掉多个建议。
-- 类型检查通过。ESLint 当前被仓库现有配置阻塞，错误是 `TypeError: Converting circular structure to JSON`。
+- 当前聊天区顶部能力分成三套：`BrainstormProgressCard` 只服务 `brainstorm`，`RequirementsGuideCard` 只服务 `requirements` 空态，`ChatPromptSuggestions` 只服务 `requirements` 输入区。
+- 这三套能力的底层诉求其实一致：告诉用户“这个模块现在要做什么、可以怎么继续、完成后要沉淀什么、目前推进到什么程度”。
+- 最稳定的配置维度是 `phase + role`，因为阶段决定主目标和文档产出，角色决定视角差异；像 `requirements` 的 PM / QA 就明显需要不同内容。
+- “产出材料”已经有可复用信号源：`PHASE_DOCUMENT_TYPES`、agent `outputTemplates`、现有文档列表、聊天消息数和特定阶段分析器。
+- 进度不能一刀切只用消息轮数。`brainstorm` 已有较强的语义分析，应保留为专用 analyzer；其它阶段更适合用“已讨论项 + 已生成文档”的轻量 checklist 进度。
+- 最终实现采用了“统一 guide config + 通用顶部卡片 + 通用建议条 + 可插拔 analyzer”的结构，避免继续在组件层复制文案和逻辑。
+- 头脑风暴阶段继续复用原有收敛度分析，其他阶段改为基于关键词/文档落地状态的 checklist 进度，这样动态性够用，同时复杂度可控。
+- `availableDocumentTypes` 从项目页统一下发到聊天面板后，顶部卡片就能在所有阶段展示“关键材料是否已落地”，不需要每个模块自己查文档状态。
