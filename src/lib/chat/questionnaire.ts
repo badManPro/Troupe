@@ -1,6 +1,11 @@
 import type { ChatQuestion, ChatQuestionnaire } from "@/types/chat";
 
 const GROUP_HINT_RE = /(问题|回答|回复|选择|确认)/;
+const STRUCTURAL_BREAK_RE = /^(?:#{1,6}\s+\S.*|(?:-{3,}|\*{3,}|_{3,}))$/;
+const FOLLOW_UP_LEAD_RE =
+  /^(?:如果你愿意|如果可以|你如果愿意|你只要|只要先回答|只要回答|回答完|答完|如果确认|如果没问题|接下来|下一步|下一条|我下一条可以|下一条我可以|我可以直接|我可以继续|如果你希望|如果需要)/;
+const SHORT_SECTION_HEADING_RE =
+  /^(?:结论|总结|我的当前判断|当前判断|补充说明|说明|后续建议|下一步建议)$/;
 
 interface RawListItem {
   number: number;
@@ -19,6 +24,24 @@ function stripMarkdown(value: string) {
 
 function normalizeInlineOption(value: string) {
   return value.replace(/^(是|还是)/, "").replace(/[？?]\s*$/, "").trim();
+}
+
+function isStructuralBreak(line: string) {
+  return STRUCTURAL_BREAK_RE.test(line.trim());
+}
+
+function isStandaloneHeading(line: string, normalizedLine: string) {
+  const trimmed = line.trim();
+
+  if (!normalizedLine || normalizedLine.length > 24) {
+    return false;
+  }
+
+  return (
+    /^#{1,6}\s+\S/.test(trimmed) ||
+    /^\*\*[^*]+\*\*$/.test(trimmed) ||
+    SHORT_SECTION_HEADING_RE.test(normalizedLine)
+  );
 }
 
 function parseNumberedItems(text: string) {
@@ -91,6 +114,7 @@ function buildQuestion(item: RawListItem, index: number): ChatQuestion | null {
   const optionLabels: string[] = [];
   let optionMode: "bullet" | "inline" | null = null;
   let postOptionDescriptionCount = 0;
+  let sawBlankSeparator = false;
 
   for (const line of detailLines) {
     const normalizedLine = stripMarkdown(line);
@@ -99,8 +123,26 @@ function buildQuestion(item: RawListItem, index: number): ChatQuestion | null {
       if (optionLabels.length >= 2 && postOptionDescriptionCount > 0) {
         break;
       }
+
+      if (descriptionLines.length > 0 || optionLabels.length > 0) {
+        sawBlankSeparator = true;
+      }
       continue;
     }
+
+    if (isStructuralBreak(line)) {
+      break;
+    }
+
+    if (
+      sawBlankSeparator &&
+      (isStandaloneHeading(line, normalizedLine) ||
+        FOLLOW_UP_LEAD_RE.test(normalizedLine))
+    ) {
+      break;
+    }
+
+    sawBlankSeparator = false;
 
     if (normalizedLine === "是：" || normalizedLine === "是:") {
       optionMode = "bullet";
