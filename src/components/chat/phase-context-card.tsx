@@ -97,6 +97,7 @@ interface PhaseContextCardProps {
   guide: PhaseChatGuideConfig;
   progress: PhaseProgressAnalysis;
   phaseArtifacts: PhaseArtifactSnapshot;
+  expandedMaxHeight?: number | null;
   hasMessages: boolean;
   storageKey: string;
   showPhaseActions?: boolean;
@@ -111,6 +112,7 @@ export function PhaseContextCard({
   guide,
   progress,
   phaseArtifacts,
+  expandedMaxHeight,
   hasMessages,
   storageKey,
   showPhaseActions = false,
@@ -149,17 +151,22 @@ export function PhaseContextCard({
     setCollapsed(hasMessages);
   }, [hasMessages, storageKey]);
 
+  const expandedCardStyle =
+    !collapsed && expandedMaxHeight
+      ? { maxHeight: `${expandedMaxHeight}px` }
+      : undefined;
+
   return (
-    <div className="shrink-0 border-b bg-card/45 px-4 py-3">
+    <div className="pointer-events-auto px-4 py-3">
       <div
         className={cn(
-          "rounded-2xl border border-border/70 bg-background/90 p-4 shadow-sm",
-          !collapsed &&
-            "max-h-[calc(100dvh-12rem)] overflow-y-auto overscroll-contain"
+          "relative overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-lg backdrop-blur-sm",
+          !collapsed && "flex flex-col"
         )}
+        style={expandedCardStyle}
       >
         {collapsed ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 p-4 text-xs">
             <Badge variant="outline" className="rounded-full">
               {phaseName}
             </Badge>
@@ -228,189 +235,195 @@ export function PhaseContextCard({
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="rounded-full">
-                    {phaseName}
-                  </Badge>
-                  <Badge variant="secondary" className="rounded-full">
-                    {guide.roleLabel}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn("rounded-full text-[11px]", readiness.tone)}
-                  >
-                    <ReadinessIcon className="mr-1 h-3.5 w-3.5" />
-                    {readiness.label}
-                  </Badge>
-                </div>
-
-                <p className="mt-3 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-                  {guide.summary}
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 rounded-xl px-2.5 text-xs"
-                onClick={() => setCollapsed(true)}
-                aria-expanded
-                aria-label="收起当前轮导航"
-              >
-                收起
-                <ChevronUp className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-
-            <div className="mt-4 grid gap-2 md:grid-cols-4">
-              <MetricItem label="当前进度" value={`${progress.score}%`} />
-              <MetricItem label="已推进项" value={`${doneCount}/${progress.criteria.length}`} />
-              <MetricItem label="关键材料" value={materialLabel} />
-              <MetricItem label="建议节奏" value={progress.estimatedTurns} />
-            </div>
-
-            <div className="mt-4 grid gap-3 xl:grid-cols-3">
-              <GuideBlock title="这个模块要做什么" icon={Target} items={guide.goals} />
-              <GuideBlock title="这一轮要讨论什么" icon={Compass} items={guide.topics} />
-              <GuideBlock
-                title="当前应沉淀什么材料"
-                icon={ClipboardCheck}
-                items={guide.deliverables}
-              />
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-border/60 bg-muted/20 p-3.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-medium text-foreground">当前轮进度</div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {progress.summary}
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  可停线 {progress.readyThreshold}% / 理想线 {progress.idealScore}%
-                </div>
-              </div>
-
-              <div className="relative mt-4 pt-5">
-                <div
-                  className="absolute top-0 -translate-x-1/2 text-[10px] text-muted-foreground"
-                  style={{ left: `${progress.readyThreshold}%` }}
-                >
-                  可停线
-                </div>
-                <div
-                  className="absolute bottom-0 top-5 w-px bg-border/90"
-                  style={{ left: `${progress.readyThreshold}%` }}
-                />
-                <Progress value={progress.score} className="h-2.5 bg-muted/80" />
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {progress.criteria.map((criterion) => (
-                  <Badge
-                    key={criterion.id}
-                    variant="outline"
-                    className={cn(
-                      "rounded-full px-2.5 py-1 text-[11px]",
-                      criterion.state === "done" && tagColors.greenOutline,
-                      criterion.state === "partial" && tagColors.orangeOutline,
-                      criterion.state === "missing" &&
-                        "border-border/80 bg-background/70 text-muted-foreground"
-                    )}
-                    title={criterion.reason}
-                  >
-                    {criterion.label}
-                  </Badge>
-                ))}
-              </div>
-
-              {phaseArtifacts.totalRequiredDocuments > 0 && (
-                <div className="mt-4">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                    文档落地情况
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {phaseArtifacts.requiredDocuments.map((document) => {
-                      const tone =
-                        document.state === "current"
-                          ? tagColors.greenOutline
-                          : document.state === "inherited"
-                            ? tagColors.orangeOutline
-                            : "border-border/80 bg-background/70 text-muted-foreground";
-
-                      return (
-                        <Badge
-                          key={document.type}
-                          variant="outline"
-                          className={cn("rounded-full px-2.5 py-1 text-[11px]", tone)}
-                          title={document.hint}
-                        >
-                          {document.state === "current"
-                            ? "已确认"
-                            : document.state === "inherited"
-                              ? "沿用旧稿"
-                              : "待产出"}{" "}
-                          {document.label}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <p className="mt-4 text-xs leading-relaxed text-foreground/80">
-                {progress.nextAction}
-              </p>
-            </div>
-
-            {showPhaseActions && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm">
+            <div className="shrink-0 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-foreground">阶段推进</div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {phaseActionMessage}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="rounded-full">
+                      {phaseName}
+                    </Badge>
+                    <Badge variant="secondary" className="rounded-full">
+                      {guide.roleLabel}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn("rounded-full text-[11px]", readiness.tone)}
+                    >
+                      <ReadinessIcon className="mr-1 h-3.5 w-3.5" />
+                      {readiness.label}
+                    </Badge>
+                  </div>
+
+                  <p className="mt-3 max-w-4xl text-sm leading-relaxed text-muted-foreground">
+                    {guide.summary}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {!isApproved ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={!canApprove}
-                      onClick={onApprovePhase}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      确认完成
-                    </Button>
-                  ) : nextPhaseName ? (
-                    <Button type="button" size="sm" onClick={onAdvancePhase}>
-                      进入{nextPhaseName}
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : (
-                    <Badge className="rounded-full">已完成</Badge>
-                  )}
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-xl px-2.5 text-xs"
+                  onClick={() => setCollapsed(true)}
+                  aria-expanded
+                  aria-label="收起当前轮导航"
+                >
+                  收起
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            )}
+            </div>
 
-            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-300/80 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-foreground">
-              <div className="mt-0.5 rounded-full bg-amber-100 p-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-                <ShieldAlert className="h-4 w-4 shrink-0" />
-              </div>
-              <div className="min-w-0">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">
-                  提醒
+            <div className="min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pr-3 sm:pr-4">
+              <div className="space-y-4">
+                <div className="grid gap-2 md:grid-cols-4">
+                  <MetricItem label="当前进度" value={`${progress.score}%`} />
+                  <MetricItem label="已推进项" value={`${doneCount}/${progress.criteria.length}`} />
+                  <MetricItem label="关键材料" value={materialLabel} />
+                  <MetricItem label="建议节奏" value={progress.estimatedTurns} />
                 </div>
-                <span className="font-medium text-foreground/90 dark:text-foreground">
-                  {guide.note}
-                </span>
-                <p className="mt-1 text-xs text-foreground/70">{progress.materialStatusLabel}</p>
+
+                <div className="grid gap-3 xl:grid-cols-3">
+                  <GuideBlock title="这个模块要做什么" icon={Target} items={guide.goals} />
+                  <GuideBlock title="这一轮要讨论什么" icon={Compass} items={guide.topics} />
+                  <GuideBlock
+                    title="当前应沉淀什么材料"
+                    icon={ClipboardCheck}
+                    items={guide.deliverables}
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">当前轮进度</div>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {progress.summary}
+                      </p>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      可停线 {progress.readyThreshold}% / 理想线 {progress.idealScore}%
+                    </div>
+                  </div>
+
+                  <div className="relative mt-4 pt-5">
+                    <div
+                      className="absolute top-0 -translate-x-1/2 text-[10px] text-muted-foreground"
+                      style={{ left: `${progress.readyThreshold}%` }}
+                    >
+                      可停线
+                    </div>
+                    <div
+                      className="absolute bottom-0 top-5 w-px bg-border/90"
+                      style={{ left: `${progress.readyThreshold}%` }}
+                    />
+                    <Progress value={progress.score} className="h-2.5 bg-muted/80" />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {progress.criteria.map((criterion) => (
+                      <Badge
+                        key={criterion.id}
+                        variant="outline"
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px]",
+                          criterion.state === "done" && tagColors.greenOutline,
+                          criterion.state === "partial" && tagColors.orangeOutline,
+                          criterion.state === "missing" &&
+                            "border-border/80 bg-background/70 text-muted-foreground"
+                        )}
+                        title={criterion.reason}
+                      >
+                        {criterion.label}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  {phaseArtifacts.totalRequiredDocuments > 0 && (
+                    <div className="mt-4">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                        文档落地情况
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {phaseArtifacts.requiredDocuments.map((document) => {
+                          const tone =
+                            document.state === "current"
+                              ? tagColors.greenOutline
+                              : document.state === "inherited"
+                                ? tagColors.orangeOutline
+                                : "border-border/80 bg-background/70 text-muted-foreground";
+
+                          return (
+                            <Badge
+                              key={document.type}
+                              variant="outline"
+                              className={cn("rounded-full px-2.5 py-1 text-[11px]", tone)}
+                              title={document.hint}
+                            >
+                              {document.state === "current"
+                                ? "已确认"
+                                : document.state === "inherited"
+                                  ? "沿用旧稿"
+                                  : "待产出"}{" "}
+                              {document.label}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="mt-4 text-xs leading-relaxed text-foreground/80">
+                    {progress.nextAction}
+                  </p>
+                </div>
+
+                {showPhaseActions && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-foreground">阶段推进</div>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {phaseActionMessage}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {!isApproved ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!canApprove}
+                          onClick={onApprovePhase}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          确认完成
+                        </Button>
+                      ) : nextPhaseName ? (
+                        <Button type="button" size="sm" onClick={onAdvancePhase}>
+                          进入{nextPhaseName}
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <Badge className="rounded-full">已完成</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-300/80 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-foreground">
+                  <div className="mt-0.5 rounded-full bg-amber-100 p-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                    <ShieldAlert className="h-4 w-4 shrink-0" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">
+                      提醒
+                    </div>
+                    <span className="font-medium text-foreground/90 dark:text-foreground">
+                      {guide.note}
+                    </span>
+                    <p className="mt-1 text-xs text-foreground/70">{progress.materialStatusLabel}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </>

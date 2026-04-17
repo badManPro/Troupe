@@ -1,6 +1,14 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
@@ -143,9 +151,12 @@ export function ChatPanel({
   onAutoStartConsumed,
   onOpenSuggestionConversation,
 }: ChatPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const autoStartRef = useRef<string | null>(null);
   const agent = getAgentById(role);
+  const [expandedCardMaxHeight, setExpandedCardMaxHeight] = useState<number | null>(null);
 
   const seedMessages = useMemo(
     () => initialMessages.map(toChatUIMessage),
@@ -195,6 +206,37 @@ export function ChatPanel({
   useEffect(() => {
     scrollToBottom();
   }, [messages, conversationId, scrollToBottom]);
+
+  useLayoutEffect(() => {
+    const panelElement = panelRef.current;
+    const composerElement = composerRef.current;
+
+    if (!panelElement || !composerElement || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const updateExpandedHeight = () => {
+      const panelRect = panelElement.getBoundingClientRect();
+      const composerRect = composerElement.getBoundingClientRect();
+      const availableHeight = Math.floor(composerRect.top - panelRect.top - 24);
+      setExpandedCardMaxHeight(Math.max(260, availableHeight));
+    };
+
+    updateExpandedHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateExpandedHeight();
+    });
+
+    observer.observe(panelElement);
+    observer.observe(composerElement);
+    window.addEventListener("resize", updateExpandedHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateExpandedHeight);
+    };
+  }, []);
 
   const isGenerating = status === "streaming" || status === "submitted";
   const phaseGuide = useMemo(
@@ -322,22 +364,25 @@ export function ChatPanel({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <PhaseContextCard
-        phase={phase}
-        guide={phaseGuide}
-        progress={phaseProgress}
-        phaseArtifacts={phaseArtifacts}
-        hasMessages={messages.length > 0}
-        storageKey={`${phase}-${role}`}
-        showPhaseActions={showPhaseActions}
-        isApproved={isPhaseApproved}
-        canApprove={phaseProgress.readyToStop && phaseArtifacts.hasAllRequiredDocuments}
-        onApprovePhase={onApprovePhase}
-        onAdvancePhase={onAdvancePhase}
-      />
+    <div ref={panelRef} className="relative flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-30">
+        <PhaseContextCard
+          phase={phase}
+          guide={phaseGuide}
+          progress={phaseProgress}
+          phaseArtifacts={phaseArtifacts}
+          expandedMaxHeight={expandedCardMaxHeight}
+          hasMessages={messages.length > 0}
+          storageKey={`${phase}-${role}`}
+          showPhaseActions={showPhaseActions}
+          isApproved={isPhaseApproved}
+          canApprove={phaseProgress.readyToStop && phaseArtifacts.hasAllRequiredDocuments}
+          onApprovePhase={onApprovePhase}
+          onAdvancePhase={onAdvancePhase}
+        />
+      </div>
 
-      <ScrollArea className="flex-1 min-h-0" ref={scrollRootRef}>
+      <ScrollArea className="flex-1 min-h-0 pt-[6.25rem]" ref={scrollRootRef}>
         <ChatTranscript
           phase={phase}
           hasExistingPrd={hasExistingPrd}
@@ -356,15 +401,17 @@ export function ChatPanel({
         />
       </ScrollArea>
 
-      <ChatComposer
-        isGenerating={isGenerating}
-        placeholder={composerPlaceholder}
-        suggestionTitle={composerSuggestionTitle}
-        suggestions={conversationSuggestions}
-        onSend={handleSend}
-        onSuggestionSelect={onOpenSuggestionConversation}
-        onStop={handleStop}
-      />
+      <div ref={composerRef} className="shrink-0">
+        <ChatComposer
+          isGenerating={isGenerating}
+          placeholder={composerPlaceholder}
+          suggestionTitle={composerSuggestionTitle}
+          suggestions={conversationSuggestions}
+          onSend={handleSend}
+          onSuggestionSelect={onOpenSuggestionConversation}
+          onStop={handleStop}
+        />
+      </div>
     </div>
   );
 }
