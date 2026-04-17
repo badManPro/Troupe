@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   ClipboardCheck,
   Compass,
@@ -21,7 +22,7 @@ import type {
   PhaseChatGuideConfig,
   PhaseProgressAnalysis,
 } from "@/lib/chat/phase-chat-guidance";
-import { PHASES, type Phase } from "@/types";
+import { PHASES, type Phase, getNextPhase } from "@/types";
 
 const READINESS_COPY: Record<
   PhaseProgressAnalysis["readiness"],
@@ -98,6 +99,11 @@ interface PhaseContextCardProps {
   progress: PhaseProgressAnalysis;
   hasMessages: boolean;
   storageKey: string;
+  showPhaseActions?: boolean;
+  isApproved?: boolean;
+  canApprove?: boolean;
+  onApprovePhase?: () => void;
+  onAdvancePhase?: () => void;
 }
 
 export function PhaseContextCard({
@@ -106,6 +112,11 @@ export function PhaseContextCard({
   progress,
   hasMessages,
   storageKey,
+  showPhaseActions = false,
+  isApproved = false,
+  canApprove = false,
+  onApprovePhase,
+  onAdvancePhase,
 }: PhaseContextCardProps) {
   const [collapsed, setCollapsed] = useState(hasMessages);
   const readiness = READINESS_COPY[progress.readiness];
@@ -119,14 +130,31 @@ export function PhaseContextCard({
     progress.requiredDocuments.length > 0
       ? `${progress.generatedDocuments.length}/${progress.requiredDocuments.length} 份文档已落地`
       : "以对话沉淀为主";
+  const nextPhase = showPhaseActions ? getNextPhase(phase) : null;
+  const nextPhaseName = nextPhase
+    ? PHASES.find((item) => item.id === nextPhase)?.name ?? nextPhase
+    : null;
+  const phaseActionMessage = isApproved
+    ? nextPhaseName
+      ? `${phaseName} 已确认完成，可以进入 ${nextPhaseName}。`
+      : `${phaseName} 已确认完成。`
+    : canApprove
+      ? "当前产出已满足进入下一步标准，可以确认完成。"
+      : "当前还未满足进入下一步标准，先补齐未完成项和关键材料。";
 
   useEffect(() => {
     setCollapsed(hasMessages);
   }, [hasMessages, storageKey]);
 
   return (
-    <div className="border-b bg-card/45 px-4 py-3">
-      <div className="rounded-2xl border border-border/70 bg-background/90 p-4 shadow-sm">
+    <div className="shrink-0 border-b bg-card/45 px-4 py-3">
+      <div
+        className={cn(
+          "rounded-2xl border border-border/70 bg-background/90 p-4 shadow-sm",
+          !collapsed &&
+            "max-h-[calc(100dvh-12rem)] overflow-y-auto overscroll-contain"
+        )}
+      >
         {collapsed ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <Badge variant="outline" className="rounded-full">
@@ -151,6 +179,36 @@ export function PhaseContextCard({
             </div>
 
             <span className="shrink-0 text-muted-foreground">{materialLabel}</span>
+
+            {showPhaseActions && (
+              <div className="flex items-center gap-2">
+                {!isApproved ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={canApprove ? "default" : "outline"}
+                    className="h-8 rounded-xl px-3"
+                    disabled={!canApprove}
+                    onClick={onApprovePhase}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    确认完成
+                  </Button>
+                ) : nextPhaseName ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 rounded-xl px-3"
+                    onClick={onAdvancePhase}
+                  >
+                    进入{nextPhaseName}
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Badge className="rounded-full">已完成</Badge>
+                )}
+              </div>
+            )}
 
             <Button
               type="button"
@@ -301,6 +359,38 @@ export function PhaseContextCard({
                 {progress.nextAction}
               </p>
             </div>
+
+            {showPhaseActions && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">阶段推进</div>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {phaseActionMessage}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {!isApproved ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!canApprove}
+                      onClick={onApprovePhase}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      确认完成
+                    </Button>
+                  ) : nextPhaseName ? (
+                    <Button type="button" size="sm" onClick={onAdvancePhase}>
+                      进入{nextPhaseName}
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <Badge className="rounded-full">已完成</Badge>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-300/80 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-foreground">
               <div className="mt-0.5 rounded-full bg-amber-100 p-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">

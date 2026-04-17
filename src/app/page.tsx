@@ -122,7 +122,7 @@ export default function Dashboard() {
         className="sticky top-0 z-20"
         containerClassName="window-header-leading"
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 pb-4 sm:px-8">
+        <div className="flex w-full items-center justify-between px-6 pb-4 sm:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm shadow-primary/20">
               <Sparkles className="w-4 h-4 text-primary-foreground" />

@@ -7,3 +7,6 @@
 - 2026-04-17: 更新 `src/components/chat/chat-panel.tsx` 与 `src/app/project/[id]/page.tsx`，让聊天面板对所有阶段展示顶部导航卡和输入区建议条，并接入项目文档状态。
 - 2026-04-17: 删除 `src/components/chat/requirements-guide-card.tsx`、`src/components/chat/brainstorm-progress-card.tsx` 和 `src/lib/chat/requirements-guide.ts`，移除旧的阶段专用双轨实现。
 - 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
+- 2026-04-17: 把阶段操作从底部 `PhaseGateBar` 收到 `PhaseContextCard`，进度卡现在会根据 `phaseProgress.readyToStop` 决定 `确认完成` 是否可点。
+- 2026-04-17: 删除 `src/components/workspace/phase-gate-bar.tsx`，避免顶部和底部出现两套阶段推进入口。
+- 2026-04-17: 再次运行 `node node_modules/typescript/bin/tsc --noEmit --pretty false`，通过。

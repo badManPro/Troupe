@@ -45,13 +45,13 @@ export function PhaseSidebar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="w-56 border-r bg-sidebar flex flex-col h-full">
+      <div className="flex h-full min-h-0 w-56 shrink-0 flex-col overflow-hidden border-r bg-sidebar">
         <div className="p-4 border-b">
           <h3 className="text-sm font-semibold text-sidebar-foreground">
             开发流程
           </h3>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
           {PHASES.map((phase, idx) => {
             const isApproved = approvedPhases.includes(phase.id);
             const isCurrent = currentPhase === phase.id;

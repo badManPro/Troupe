@@ -226,7 +226,7 @@ export function DocumentPanel({
 
   return (
     <>
-    <div className="flex h-full w-[23rem] min-w-[23rem] flex-col border-l bg-card/40 backdrop-blur-sm">
+    <div className="flex h-full min-h-0 w-[23rem] min-w-[23rem] shrink-0 flex-col overflow-hidden border-l bg-card/40 backdrop-blur-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
@@ -260,8 +260,8 @@ export function DocumentPanel({
       </div>
 
       {/* Document List & Generation */}
-      <Tabs defaultValue="current" className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="mx-4 mt-3 h-9 w-fit rounded-xl bg-muted/80 p-1">
+      <Tabs defaultValue="current" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="mx-4 mt-3 h-9 w-fit shrink-0 rounded-xl bg-muted/80 p-1">
           <TabsTrigger value="current" className="text-xs">
             当前阶段
           </TabsTrigger>
@@ -270,143 +270,145 @@ export function DocumentPanel({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="current" className="mt-0 flex min-h-0 flex-1 flex-col">
-          <div className="space-y-2 px-4 py-3">
-            {phaseDocs.map((doc) => (
-              <button
-                key={doc.id}
-                onClick={() => handleSelectDoc(doc)}
-                className={`w-full cursor-pointer rounded-2xl border px-3 py-2.5 text-left text-sm transition-all ${
-                  activeDoc?.id === doc.id
-                    ? "border-primary/25 bg-primary/8 shadow-sm"
-                    : "border-border/70 bg-background/70 hover:border-primary/15 hover:bg-accent/35"
-                }`}
-              >
-                <div className="truncate text-[13px] font-semibold text-foreground">
-                  {doc.title}
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <Badge variant="secondary" className="h-4 text-[10px]">
-                    {DOCUMENT_TYPE_LABELS[doc.type as DocumentType] || doc.type}
-                  </Badge>
-                  <span className="text-[10px] text-muted-foreground/90">
-                    v{doc.version}
-                  </span>
-                </div>
-              </button>
-            ))}
+        <TabsContent value="current" className="mt-0 min-h-0 flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="space-y-4 py-3">
+              <div className="space-y-2 px-4">
+                {phaseDocs.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => handleSelectDoc(doc)}
+                    className={`w-full cursor-pointer rounded-2xl border px-3 py-2.5 text-left text-sm transition-all ${
+                      activeDoc?.id === doc.id
+                        ? "border-primary/25 bg-primary/8 shadow-sm"
+                        : "border-border/70 bg-background/70 hover:border-primary/15 hover:bg-accent/35"
+                    }`}
+                  >
+                    <div className="truncate text-[13px] font-semibold text-foreground">
+                      {doc.title}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Badge variant="secondary" className="h-4 text-[10px]">
+                        {DOCUMENT_TYPE_LABELS[doc.type as DocumentType] || doc.type}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground/90">
+                        v{doc.version}
+                      </span>
+                    </div>
+                  </button>
+                ))}
 
-            {/* Generate Buttons */}
-            {(generatableTypes.length > 0 || availableDocTypes.length > 0) && (
-              <div className="space-y-1.5 pt-2">
-                {availableDocTypes.map((docType) => {
-                  const exists = existingTypes.includes(docType);
-                  return (
-                    <Button
-                      key={docType}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full justify-start rounded-xl border-border/70 bg-background/80 text-xs shadow-sm"
-                      onClick={() => handleGenerate(docType)}
-                      disabled={generating}
-                    >
-                      {generating ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-3 h-3" />
-                      )}
-                      {exists ? "重新生成" : "生成"}
-                      {DOCUMENT_TYPE_LABELS[docType]}
-                    </Button>
-                  );
-                })}
+                {(generatableTypes.length > 0 || availableDocTypes.length > 0) && (
+                  <div className="space-y-1.5 pt-2">
+                    {availableDocTypes.map((docType) => {
+                      const exists = existingTypes.includes(docType);
+                      return (
+                        <Button
+                          key={docType}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-full justify-start rounded-xl border-border/70 bg-background/80 text-xs shadow-sm"
+                          onClick={() => handleGenerate(docType)}
+                          disabled={generating}
+                        >
+                          {generating ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3 h-3" />
+                          )}
+                          {exists ? "重新生成" : "生成"}
+                          {DOCUMENT_TYPE_LABELS[docType]}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {phaseDocs.length === 0 && availableDocTypes.length === 0 && (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p>当前还没有可展示的结构化产出物</p>
+                    <p className="text-xs mt-1">
+                      继续和产品经理梳理需求，或进入下一阶段生成正式文档
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
 
-            {phaseDocs.length === 0 && availableDocTypes.length === 0 && (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p>当前还没有可展示的结构化产出物</p>
-                <p className="text-xs mt-1">
-                  继续和产品经理梳理需求，或进入下一阶段生成正式文档
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Document Preview Summary */}
-          {activeDoc && (
-            <>
-              <Separator />
-              <div className="flex min-h-0 flex-1 flex-col p-4">
-                <div className="rounded-[22px] border border-border/70 bg-background/92 shadow-sm">
-                  <div className="space-y-3 px-4 py-3">
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-foreground">
-                            {editTitle}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <Badge variant="secondary" className="h-4 rounded-md text-[10px]">
-                              {DOCUMENT_TYPE_LABELS[activeDoc.type] || activeDoc.type}
-                            </Badge>
-                            <span>v{activeDoc.version}</span>
-                            <span className="inline-flex items-center gap-1">
-                              <Clock3 className="h-3 w-3" />
-                              {updatedLabel}
-                            </span>
+              {activeDoc && (
+                <>
+                  <Separator />
+                  <div className="px-4 pb-4">
+                    <div className="rounded-[22px] border border-border/70 bg-background/92 shadow-sm">
+                      <div className="space-y-3 px-4 py-3">
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-foreground">
+                                {editTitle}
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                <Badge variant="secondary" className="h-4 rounded-md text-[10px]">
+                                  {DOCUMENT_TYPE_LABELS[activeDoc.type] || activeDoc.type}
+                                </Badge>
+                                <span>v{activeDoc.version}</span>
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock3 className="h-3 w-3" />
+                                  {updatedLabel}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
+                              {sectionCount} 节
+                            </div>
                           </div>
                         </div>
-                        <div className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
-                          {sectionCount} 节
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-8 flex-1 rounded-xl"
+                            onClick={() => openDocumentDialog("preview")}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            查看
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 flex-1 rounded-xl"
+                            onClick={() => openDocumentDialog("edit")}
+                          >
+                            <PencilLine className="h-3.5 w-3.5" />
+                            编辑
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="relative px-4 py-3">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-background via-background/92 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background via-background/92 to-transparent" />
+                        <div className="max-h-[24rem] overflow-hidden">
+                          <MarkdownViewer
+                            content={editContent}
+                            density="compact"
+                            showDiagramPreview={false}
+                            className="text-[13px]"
+                          />
                         </div>
                       </div>
                     </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="h-8 flex-1 rounded-xl"
-                        onClick={() => openDocumentDialog("preview")}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        查看
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 flex-1 rounded-xl"
-                        onClick={() => openDocumentDialog("edit")}
-                      >
-                        <PencilLine className="h-3.5 w-3.5" />
-                        编辑
-                      </Button>
-                    </div>
                   </div>
-
-                  <Separator />
-
-                  <div className="relative px-4 py-3">
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-background via-background/92 to-transparent" />
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background via-background/92 to-transparent" />
-                    <div className="max-h-[24rem] overflow-hidden">
-                      <MarkdownViewer
-                        content={editContent}
-                        density="compact"
-                        showDiagramPreview={false}
-                        className="text-[13px]"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+                </>
+              )}
+            </div>
+          </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="all" className="mt-0 flex min-h-0 flex-1 flex-col">
-          <ScrollArea className="flex-1">
+        <TabsContent value="all" className="mt-0 min-h-0 flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
             <div className="space-y-2 px-4 py-3">
               {documents.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">

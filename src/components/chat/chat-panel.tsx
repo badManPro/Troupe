@@ -112,6 +112,10 @@ interface ChatPanelProps {
   phase: Phase;
   hasExistingPrd?: boolean;
   availableDocumentTypes?: DocumentType[];
+  showPhaseActions?: boolean;
+  isPhaseApproved?: boolean;
+  onApprovePhase?: () => void;
+  onAdvancePhase?: () => void;
   initialMessages?: PersistedChatMessage[];
   onDocumentGenerated?: () => void;
 }
@@ -123,6 +127,10 @@ export function ChatPanel({
   phase,
   hasExistingPrd = false,
   availableDocumentTypes = [],
+  showPhaseActions = false,
+  isPhaseApproved = false,
+  onApprovePhase,
+  onAdvancePhase,
   initialMessages = [],
   onDocumentGenerated,
 }: ChatPanelProps) {
@@ -254,13 +262,18 @@ export function ChatPanel({
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <PhaseContextCard
         phase={phase}
         guide={phaseGuide}
         progress={phaseProgress}
         hasMessages={messages.length > 0}
         storageKey={`${phase}-${role}`}
+        showPhaseActions={showPhaseActions}
+        isApproved={isPhaseApproved}
+        canApprove={phaseProgress.readyToStop}
+        onApprovePhase={onApprovePhase}
+        onAdvancePhase={onAdvancePhase}
       />
 
       <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>

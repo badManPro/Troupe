@@ -8,7 +8,6 @@ import { PhaseSidebar } from "@/components/workspace/phase-sidebar";
 import { RoleTabs } from "@/components/workspace/role-tabs";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
-import { PhaseGateBar } from "@/components/workspace/phase-gate-bar";
 import { WindowHeader } from "@/components/layout/window-header";
 import type { Phase, AgentRole, DocumentType } from "@/types";
 import { PHASES, getNextPhase } from "@/types";
@@ -192,8 +191,11 @@ export default function ProjectWorkspace({
 
   if (!project) return null;
 
+  const isCurrentPhaseApproved = approvedPhases.includes(currentPhase);
+  const isCurrentProjectPhase = currentPhase === project.phase;
+
   return (
-    <div className="app-shell flex h-screen flex-col">
+    <div className="app-shell flex h-screen flex-col overflow-hidden">
       <WindowHeader className="shrink-0" containerClassName="window-header-leading">
         <div className="flex items-center gap-3 px-4 pb-3">
           <Button
@@ -225,7 +227,7 @@ export default function ProjectWorkspace({
         </div>
       </WindowHeader>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <PhaseSidebar
           currentPhase={currentPhase}
           projectPhase={project.phase}
@@ -233,14 +235,14 @@ export default function ProjectWorkspace({
           onPhaseSelect={handlePhaseSelect}
         />
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <RoleTabs
             phase={currentPhase}
             activeRole={activeRole}
             onRoleSelect={setActiveRole}
           />
 
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
             {conversationLoading ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -257,6 +259,10 @@ export default function ProjectWorkspace({
                 phase={currentPhase}
                 hasExistingPrd={project.documents.some((doc) => doc.type === "prd")}
                 availableDocumentTypes={project.documents.map((doc) => doc.type)}
+                showPhaseActions={isCurrentProjectPhase}
+                isPhaseApproved={isCurrentPhaseApproved}
+                onApprovePhase={handleApprovePhase}
+                onAdvancePhase={handleAdvancePhase}
                 initialMessages={initialMessages}
                 onDocumentGenerated={handleDocumentGenerated}
               />
@@ -278,13 +284,6 @@ export default function ProjectWorkspace({
             )}
           </div>
 
-          <PhaseGateBar
-            currentPhase={currentPhase}
-            projectPhase={project.phase}
-            onAdvancePhase={handleAdvancePhase}
-            onApprovePhase={handleApprovePhase}
-            isApproved={approvedPhases.includes(currentPhase)}
-          />
         </div>
 
         <DocumentPanel
