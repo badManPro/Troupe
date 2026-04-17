@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
+import { syncDerivedDocuments } from "@/lib/documents/sync";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -9,6 +10,8 @@ export async function GET(
 ) {
   ensureDb();
   const { id } = await params;
+
+  syncDerivedDocuments(id);
 
   const project = db
     .select()

@@ -6,10 +6,16 @@ import { ArrowLeft, Sparkles, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhaseSidebar } from "@/components/workspace/phase-sidebar";
 import { RoleTabs } from "@/components/workspace/role-tabs";
+import { ConversationTabs } from "@/components/workspace/conversation-tabs";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
 import { WindowHeader } from "@/components/layout/window-header";
-import type { Phase, AgentRole, DocumentType } from "@/types";
+import type {
+  ConversationSummary,
+  Phase,
+  AgentRole,
+  ProjectDocument,
+} from "@/types";
 import { PHASES, getNextPhase } from "@/types";
 import type { PersistedChatMessage } from "@/types/chat";
 
@@ -19,7 +25,13 @@ interface ProjectData {
   description: string;
   phase: Phase;
   gates: { id: string; phase: string; status: string; checklist: string }[];
-  documents: { id: string; type: DocumentType; phase: string }[];
+  documents: ProjectDocument[];
+}
+
+interface PendingStarter {
+  conversationId: string;
+  prompt: string;
+  key: string;
 }
 
 export default function ProjectWorkspace({
@@ -32,15 +44,16 @@ export default function ProjectWorkspace({
   const [project, setProject] = useState<ProjectData | null>(null);
   const [currentPhase, setCurrentPhase] = useState<Phase>("brainstorm");
   const [activeRole, setActiveRole] = useState<AgentRole>("pm");
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<PersistedChatMessage[]>(
     []
   );
+  const [pendingStarter, setPendingStarter] = useState<PendingStarter | null>(null);
   const [conversationLoading, setConversationLoading] = useState(false);
   const [conversationLoadError, setConversationLoadError] = useState<
     string | null
   >(null);
-  const [docRefresh, setDocRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   const conversationRequestRef = useRef(0);
 
@@ -65,38 +78,83 @@ export default function ProjectWorkspace({
     }
   }, [id, router, loading]);
 
+  const refreshConversationSummaries = useCallback(
+    async (role: AgentRole, phase: Phase) => {
+      const res = await fetch(
+        `/api/projects/${id}/conversations?role=${role}&phase=${phase}`
+      );
+      if (!res.ok) {
+        return;
+      }
+
+      const nextConversations = (await res.json()) as ConversationSummary[];
+      setConversations(nextConversations);
+    },
+    [id]
+  );
+
   const handleDocumentGenerated = useCallback(() => {
-    setDocRefresh((n) => n + 1);
     fetchProject();
-  }, [fetchProject]);
+    refreshConversationSummaries(activeRole, currentPhase);
+  }, [activeRole, currentPhase, fetchProject, refreshConversationSummaries]);
 
   useEffect(() => {
     fetchProject();
   }, [fetchProject]);
 
   const loadConversation = useCallback(
-    async (role: AgentRole, phase: Phase) => {
+    async (
+      role: AgentRole,
+      phase: Phase,
+      preferredConversationId?: string | null
+    ) => {
       const requestId = conversationRequestRef.current + 1;
       conversationRequestRef.current = requestId;
 
       setConversationLoading(true);
       setConversationLoadError(null);
-      setConversationId(null);
       setInitialMessages([]);
 
       try {
-        const res = await fetch(`/api/projects/${id}/conversations`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role, phase }),
-        });
+        let res = await fetch(
+          `/api/projects/${id}/conversations?role=${role}&phase=${phase}`
+        );
         if (!res.ok) {
-          throw new Error("恢复会话失败");
+          throw new Error("读取会话列表失败");
         }
-        const conv = await res.json();
+
+        let conversationList = (await res.json()) as ConversationSummary[];
+        let nextConversationId =
+          preferredConversationId &&
+          conversationList.some((conversation) => conversation.id === preferredConversationId)
+            ? preferredConversationId
+            : conversationList[0]?.id ?? null;
+
+        if (!nextConversationId) {
+          const createRes = await fetch(`/api/projects/${id}/conversations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role, phase, forceNew: true }),
+          });
+
+          if (!createRes.ok) {
+            throw new Error("创建会话失败");
+          }
+
+          const createdConversation = await createRes.json();
+          nextConversationId = createdConversation.id;
+
+          res = await fetch(
+            `/api/projects/${id}/conversations?role=${role}&phase=${phase}`
+          );
+          if (!res.ok) {
+            throw new Error("刷新会话列表失败");
+          }
+          conversationList = (await res.json()) as ConversationSummary[];
+        }
 
         const msgRes = await fetch(
-          `/api/projects/${id}/messages?conversationId=${conv.id}`
+          `/api/projects/${id}/messages?conversationId=${nextConversationId}`
         );
         if (!msgRes.ok) {
           throw new Error("读取历史消息失败");
@@ -107,6 +165,7 @@ export default function ProjectWorkspace({
           return;
         }
 
+        setConversations(conversationList);
         setInitialMessages(
           msgs.map((m: PersistedChatMessage) => ({
             id: m.id,
@@ -114,7 +173,7 @@ export default function ProjectWorkspace({
             content: m.content,
           }))
         );
-        setConversationId(conv.id);
+        setConversationId(nextConversationId);
       } catch (error) {
         if (conversationRequestRef.current === requestId) {
           setConversationLoadError(
@@ -150,11 +209,16 @@ export default function ProjectWorkspace({
 
   const handleApprovePhase = async () => {
     if (!project) return;
-    await fetch(`/api/projects/${id}/phase-gate`, {
+    const res = await fetch(`/api/projects/${id}/phase-gate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phase: project.phase, action: "approve" }),
     });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      window.alert(payload?.error ?? "当前阶段还有必交付文档未完成");
+      return;
+    }
     await fetchProject();
   };
 
@@ -180,6 +244,57 @@ export default function ProjectWorkspace({
       setActiveRole(phaseInfo.roles[0]);
     }
   };
+
+  const handleConversationSelect = useCallback(
+    (nextConversationId: string) => {
+      loadConversation(activeRole, currentPhase, nextConversationId);
+    },
+    [activeRole, currentPhase, loadConversation]
+  );
+
+  const handleCreateConversation = useCallback(
+    async (
+      nextRole: AgentRole = activeRole,
+      nextPhase: Phase = currentPhase,
+      starter?: { prompt: string }
+    ) => {
+      const res = await fetch(`/api/projects/${id}/conversations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: nextRole, phase: nextPhase, forceNew: true }),
+      });
+
+      if (!res.ok) {
+        return;
+      }
+
+      const conversation = await res.json();
+      if (starter?.prompt) {
+        setPendingStarter({
+          conversationId: conversation.id,
+          prompt: starter.prompt,
+          key: `${conversation.id}:${Date.now()}`,
+        });
+      }
+
+      setCurrentPhase(nextPhase);
+      setActiveRole(nextRole);
+      loadConversation(nextRole, nextPhase, conversation.id);
+    },
+    [activeRole, currentPhase, id, loadConversation]
+  );
+
+  const handleOpenSuggestionConversation = useCallback(
+    async (suggestion: {
+      prompt: string;
+      role: AgentRole;
+    }) => {
+      await handleCreateConversation(suggestion.role, currentPhase, {
+        prompt: suggestion.prompt,
+      });
+    },
+    [currentPhase, handleCreateConversation]
+  );
 
   const approvedPhases = (project?.gates || [])
     .filter((g) => g.status === "approved")
@@ -245,6 +360,12 @@ export default function ProjectWorkspace({
             activeRole={activeRole}
             onRoleSelect={setActiveRole}
           />
+          <ConversationTabs
+            conversations={conversations}
+            activeConversationId={conversationId}
+            onSelect={handleConversationSelect}
+            onCreate={() => handleCreateConversation()}
+          />
 
           <div className="flex-1 min-h-0 overflow-hidden">
             {conversationLoading ? (
@@ -262,13 +383,29 @@ export default function ProjectWorkspace({
                 role={activeRole}
                 phase={currentPhase}
                 hasExistingPrd={project.documents.some((doc) => doc.type === "prd")}
-                availableDocumentTypes={project.documents.map((doc) => doc.type)}
+                documents={project.documents}
                 showPhaseActions={isCurrentProjectPhase}
                 isPhaseApproved={isCurrentPhaseApproved}
                 onApprovePhase={handleApprovePhase}
                 onAdvancePhase={handleAdvancePhase}
                 initialMessages={initialMessages}
                 onDocumentGenerated={handleDocumentGenerated}
+                autoStartPrompt={
+                  pendingStarter?.conversationId === conversationId
+                    ? pendingStarter.prompt
+                    : null
+                }
+                autoStartKey={
+                  pendingStarter?.conversationId === conversationId
+                    ? pendingStarter.key
+                    : null
+                }
+                onAutoStartConsumed={(key) => {
+                  setPendingStarter((current) =>
+                    current?.key === key ? null : current
+                  );
+                }}
+                onOpenSuggestionConversation={handleOpenSuggestionConversation}
               />
             ) : (
               <div className="flex h-full items-center justify-center">
@@ -293,7 +430,8 @@ export default function ProjectWorkspace({
         <DocumentPanel
           projectId={id}
           phase={currentPhase}
-          refreshTrigger={docRefresh}
+          documents={project.documents}
+          onDocumentsChanged={fetchProject}
         />
       </div>
     </div>

@@ -18,11 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { tagColors } from "@/lib/tag-colors";
 import { cn } from "@/lib/utils";
-import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import type {
   PhaseChatGuideConfig,
   PhaseProgressAnalysis,
 } from "@/lib/chat/phase-chat-guidance";
+import type { PhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
 import { PHASES, type Phase, getNextPhase } from "@/types";
 
 const READINESS_COPY: Record<
@@ -96,6 +96,7 @@ interface PhaseContextCardProps {
   phase: Phase;
   guide: PhaseChatGuideConfig;
   progress: PhaseProgressAnalysis;
+  phaseArtifacts: PhaseArtifactSnapshot;
   hasMessages: boolean;
   storageKey: string;
   showPhaseActions?: boolean;
@@ -109,6 +110,7 @@ export function PhaseContextCard({
   phase,
   guide,
   progress,
+  phaseArtifacts,
   hasMessages,
   storageKey,
   showPhaseActions = false,
@@ -126,8 +128,8 @@ export function PhaseContextCard({
   );
   const doneCount = progress.criteria.filter((criterion) => criterion.state === "done").length;
   const materialLabel =
-    progress.requiredDocuments.length > 0
-      ? `${progress.generatedDocuments.length}/${progress.requiredDocuments.length} 份文档已落地`
+    phaseArtifacts.totalRequiredDocuments > 0
+      ? `${phaseArtifacts.currentDocumentCount}/${phaseArtifacts.totalRequiredDocuments} 份阶段文档已确认`
       : "以对话沉淀为主";
   const nextPhase = showPhaseActions ? getNextPhase(phase) : null;
   const nextPhaseName = nextPhase
@@ -139,7 +141,9 @@ export function PhaseContextCard({
       : `${phaseName} 已确认完成。`
     : canApprove
       ? "当前产出已满足进入下一步标准，可以确认完成。"
-      : "当前还未满足进入下一步标准，先补齐未完成项和关键材料。";
+      : phaseArtifacts.missingDocumentTypes.length > 0
+        ? "当前阶段文档还没全部落地，先补齐缺失或沿用旧稿的产出。"
+        : "当前还未满足进入下一步标准，先补齐未完成项和关键材料。";
 
   useEffect(() => {
     setCollapsed(hasMessages);
@@ -324,27 +328,33 @@ export function PhaseContextCard({
                 ))}
               </div>
 
-              {progress.requiredDocuments.length > 0 && (
+              {phaseArtifacts.totalRequiredDocuments > 0 && (
                 <div className="mt-4">
                   <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                     文档落地情况
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {progress.requiredDocuments.map((type) => {
-                      const ready = progress.generatedDocuments.includes(type);
+                    {phaseArtifacts.requiredDocuments.map((document) => {
+                      const tone =
+                        document.state === "current"
+                          ? tagColors.greenOutline
+                          : document.state === "inherited"
+                            ? tagColors.orangeOutline
+                            : "border-border/80 bg-background/70 text-muted-foreground";
 
                       return (
                         <Badge
-                          key={type}
+                          key={document.type}
                           variant="outline"
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[11px]",
-                            ready
-                              ? tagColors.greenOutline
-                              : "border-border/80 bg-background/70 text-muted-foreground"
-                          )}
+                          className={cn("rounded-full px-2.5 py-1 text-[11px]", tone)}
+                          title={document.hint}
                         >
-                          {ready ? "已产出" : "待产出"} {DOCUMENT_TYPE_LABELS[type]}
+                          {document.state === "current"
+                            ? "已确认"
+                            : document.state === "inherited"
+                              ? "沿用旧稿"
+                              : "待产出"}{" "}
+                          {document.label}
                         </Badge>
                       );
                     })}

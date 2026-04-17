@@ -10,3 +10,13 @@
 - 2026-04-17: 把阶段操作从底部 `PhaseGateBar` 收到 `PhaseContextCard`，进度卡现在会根据 `phaseProgress.readyToStop` 决定 `确认完成` 是否可点。
 - 2026-04-17: 删除 `src/components/workspace/phase-gate-bar.tsx`，避免顶部和底部出现两套阶段推进入口。
 - 2026-04-17: 再次运行 `node node_modules/typescript/bin/tsc --noEmit --pretty false`，通过。
+- 2026-04-17: 读取当前项目 `个人学习规划助手` 的最新 requirements 对话、phase gate 和 documents 表，确认最新 PM 回复已经产出完整 PRD，但 documents 表仍只有 `brainstorm` 阶段的旧 `prd`。
+- 2026-04-17: 对照 `phase-context-card`、`chat-panel`、`document-panel`、`phase-gate`、`documents/sync` 和相关 API，定位“可收口判断”“文档落地”“右侧刷新”使用了三套不同规则。
+- 2026-04-17: 记录当前体验问题的根因：前端启发式 readyToStop、服务端无校验、派生文档只按 type 去重、文档面板对同 id 更新不刷新，以及 assistant 文案在“已收口”和“继续产出”之间冲突。
+- 2026-04-17: 新增 `src/lib/workspace/phase-artifacts.ts`，把当前阶段必交付文档状态统一抽成 `missing / inherited / current` 三态，供顶部卡片、右侧文档面板和阶段审批共用。
+- 2026-04-17: 更新 `src/lib/documents/sync.ts`，派生文档改为按类型 upsert，并支持从 PM / 设计 / 架构 / QA / 协调员的结构化回复里同步阶段文档，解决“聊天已产出但右侧不更新”。
+- 2026-04-17: 更新 `/api/projects/[id]`、`/api/documents/generate`、`/api/documents`、`/api/projects/[id]/phase-gate`，让项目读取先同步文档、后续阶段重新生成会覆盖 phase，并在服务端阻止缺少必交付文档时直接 approve。
+- 2026-04-17: 重构 `/api/projects/[id]/conversations` 和项目工作台，支持同一 phase/role 下多会话 tab；底部建议点击后会新建独立对话并自动发送 starter prompt。
+- 2026-04-17: 更新 `chat-panel`、`phase-context-card`、`chat-prompt-suggestions` 和 `document-panel`，让顶部、底部和右侧都基于同一份阶段产出状态显示进度、缺口、已确认文档和待补文档。
+- 2026-04-17: 修复聊天区滚动定位，进入会话或追加消息时默认滚到底部。
+- 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。

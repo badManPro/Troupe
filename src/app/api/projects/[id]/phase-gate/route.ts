@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
+import { syncDerivedDocuments } from "@/lib/documents/sync";
+import { getPhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
+import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import { v4 as uuid } from "uuid";
 import { eq, and } from "drizzle-orm";
+import type { DocumentType, Phase } from "@/types";
 
 export async function POST(
   req: NextRequest,
@@ -14,6 +18,31 @@ export async function POST(
   const { phase, action } = body;
 
   if (action === "approve") {
+    syncDerivedDocuments(id);
+
+    const documents = db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.projectId, id))
+      .all()
+      .map((document) => ({
+        ...document,
+        type: document.type as DocumentType,
+        phase: document.phase as Phase,
+      }));
+
+    const phaseArtifacts = getPhaseArtifactSnapshot(phase, documents);
+    if (!phaseArtifacts.hasAllRequiredDocuments) {
+      return NextResponse.json(
+        {
+          error: `当前阶段仍缺少必交付文档：${phaseArtifacts.missingDocumentTypes
+            .map((type) => DOCUMENT_TYPE_LABELS[type])
+            .join(" / ")}`,
+        },
+        { status: 400 }
+      );
+    }
+
     const gate = db
       .select()
       .from(schema.phaseGates)

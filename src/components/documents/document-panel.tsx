@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FileText,
   Save,
@@ -25,69 +25,47 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import {
-  DOCUMENT_TYPE_LABELS,
-  PHASE_DOCUMENT_TYPES,
-} from "@/lib/documents/catalog";
+  getPhaseArtifactSnapshot,
+  getPhaseRelevantDocuments,
+} from "@/lib/workspace/phase-artifacts";
 import { DocumentEditor } from "./document-editor";
 import { MarkdownViewer } from "./markdown-viewer";
-import type { DocumentType, Phase } from "@/types";
+import type { DocumentType, Phase, ProjectDocument } from "@/types";
 import { PHASES } from "@/types";
-
-interface Document {
-  id: string;
-  projectId: string;
-  type: DocumentType;
-  title: string;
-  content: string;
-  version: number;
-  phase: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface DocumentPanelProps {
   projectId: string;
   phase: Phase;
-  refreshTrigger?: number;
+  documents: ProjectDocument[];
+  onDocumentsChanged?: () => void;
 }
 
 export function DocumentPanel({
   projectId,
   phase,
-  refreshTrigger,
+  documents,
+  onDocumentsChanged,
 }: DocumentPanelProps) {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [activeDoc, setActiveDoc] = useState<Document | null>(null);
+  const [activeDoc, setActiveDoc] = useState<ProjectDocument | null>(null);
   const [editContent, setEditContent] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editorTab, setEditorTab] = useState<"preview" | "edit">("preview");
-
-  const fetchDocuments = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/documents?projectId=${projectId}`);
-      const data = await res.json();
-      setDocuments(data);
-    } catch {
-      // retry on next trigger
-    }
-  }, [projectId]);
+  const phaseArtifacts = useMemo(
+    () => getPhaseArtifactSnapshot(phase, documents),
+    [documents, phase]
+  );
+  const phaseDocs = useMemo(
+    () => getPhaseRelevantDocuments(phase, documents),
+    [documents, phase]
+  );
 
   useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments, refreshTrigger]);
-
-  useEffect(() => {
-    const availableDocTypes = PHASE_DOCUMENT_TYPES[phase] || [];
-    const relevantPhaseDoc = documents.find(
-      (doc) =>
-        doc.phase === phase ||
-        availableDocTypes.includes(doc.type as DocumentType)
-    );
-    const fallbackDoc = relevantPhaseDoc || documents[0] || null;
+    const fallbackDoc = phaseDocs[0] ?? documents[0] ?? null;
 
     if (!fallbackDoc) {
       setActiveDoc(null);
@@ -96,12 +74,16 @@ export function DocumentPanel({
       return;
     }
 
-    if (activeDoc?.id !== fallbackDoc.id) {
+    if (
+      activeDoc?.id !== fallbackDoc.id ||
+      activeDoc?.version !== fallbackDoc.version ||
+      activeDoc?.updatedAt !== fallbackDoc.updatedAt
+    ) {
       setActiveDoc(fallbackDoc);
       setEditContent(fallbackDoc.content);
       setEditTitle(fallbackDoc.title);
     }
-  }, [documents, phase, activeDoc?.id]);
+  }, [activeDoc?.id, activeDoc?.updatedAt, activeDoc?.version, documents, phaseDocs]);
 
   const handleSave = async () => {
     if (!activeDoc) return;
@@ -116,7 +98,7 @@ export function DocumentPanel({
           title: editTitle,
         }),
       });
-      await fetchDocuments();
+      onDocumentsChanged?.();
     } finally {
       setSaving(false);
     }
@@ -171,20 +153,7 @@ export function DocumentPanel({
         }
       }
 
-      await fetchDocuments();
-
-      const updatedRes = await fetch(`/api/documents?projectId=${projectId}`);
-      const updatedDocs = await updatedRes.json();
-      setDocuments(updatedDocs);
-
-      const newDoc = updatedDocs.find(
-        (d: Document) => d.type === docType
-      );
-      if (newDoc) {
-        setActiveDoc(newDoc);
-        setEditContent(newDoc.content);
-        setEditTitle(newDoc.title);
-      }
+      onDocumentsChanged?.();
     } catch (err) {
       console.error("Document generation error:", err);
     } finally {
@@ -192,7 +161,7 @@ export function DocumentPanel({
     }
   };
 
-  const handleSelectDoc = (doc: Document) => {
+  const handleSelectDoc = (doc: ProjectDocument) => {
     setActiveDoc(doc);
     setEditContent(doc.content);
     setEditTitle(doc.title);
@@ -204,16 +173,9 @@ export function DocumentPanel({
     setDialogOpen(true);
   };
 
-  const availableDocTypes = PHASE_DOCUMENT_TYPES[phase] || [];
-  const phaseDocs = documents.filter(
-    (doc) =>
-      doc.phase === phase ||
-      availableDocTypes.includes(doc.type as DocumentType)
-  );
-  const existingTypes = phaseDocs.map((d) => d.type);
-  const generatableTypes = availableDocTypes.filter(
-    (t) => !existingTypes.includes(t)
-  );
+  const existingTypes = phaseArtifacts.requiredDocuments
+    .filter((document) => document.state === "current")
+    .map((document) => document.type);
   const sectionCount = editContent.match(/^#{1,3}\s+/gm)?.length ?? 0;
   const updatedLabel = activeDoc
     ? new Date(activeDoc.updatedAt).toLocaleString("zh-CN", {
@@ -274,6 +236,59 @@ export function DocumentPanel({
           <ScrollArea className="h-full">
             <div className="space-y-4 py-3">
               <div className="space-y-2 px-4">
+                {phaseArtifacts.totalRequiredDocuments > 0 && (
+                  <div className="rounded-[22px] border border-border/70 bg-background/85 p-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          当前阶段必交付
+                        </div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                          {phaseArtifacts.currentDocumentCount}/
+                          {phaseArtifacts.totalRequiredDocuments} 份文档已在当前阶段确认
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full text-[10px]">
+                        {PHASES.find((item) => item.id === phase)?.name}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {phaseArtifacts.requiredDocuments.map((document) => (
+                        <div
+                          key={document.type}
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-medium text-foreground">
+                              {document.label}
+                            </div>
+                            <div className="mt-1 text-[11px] text-muted-foreground">
+                              {document.hint}
+                            </div>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={
+                              document.state === "current"
+                                ? "rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                : document.state === "inherited"
+                                  ? "rounded-full border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+                                  : "rounded-full"
+                            }
+                          >
+                            {document.state === "current"
+                              ? "已确认"
+                              : document.state === "inherited"
+                                ? "沿用旧稿"
+                                : "待产出"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {phaseDocs.map((doc) => (
                   <button
                     key={doc.id}
@@ -298,9 +313,10 @@ export function DocumentPanel({
                   </button>
                 ))}
 
-                {(generatableTypes.length > 0 || availableDocTypes.length > 0) && (
+                {phaseArtifacts.totalRequiredDocuments > 0 && (
                   <div className="space-y-1.5 pt-2">
-                    {availableDocTypes.map((docType) => {
+                    {phaseArtifacts.requiredDocuments.map((document) => {
+                      const docType = document.type;
                       const exists = existingTypes.includes(docType);
                       return (
                         <Button
@@ -316,7 +332,7 @@ export function DocumentPanel({
                           ) : (
                             <Sparkles className="w-3 h-3" />
                           )}
-                          {exists ? "重新生成" : "生成"}
+                          {exists ? "重新生成" : document.state === "inherited" ? "更新" : "生成"}
                           {DOCUMENT_TYPE_LABELS[docType]}
                         </Button>
                       );
@@ -324,7 +340,7 @@ export function DocumentPanel({
                   </div>
                 )}
 
-                {phaseDocs.length === 0 && availableDocTypes.length === 0 && (
+                {phaseDocs.length === 0 && phaseArtifacts.totalRequiredDocuments === 0 && (
                   <div className="py-6 text-center text-sm text-muted-foreground">
                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
                     <p>当前还没有可展示的结构化产出物</p>

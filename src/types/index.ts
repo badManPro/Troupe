@@ -48,6 +48,30 @@ export interface AgentConfig {
   model: string;
 }
 
+export interface ProjectDocument {
+  id: string;
+  projectId: string;
+  type: DocumentType;
+  title: string;
+  content: string;
+  version: number;
+  phase: Phase;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  projectId: string;
+  role: AgentRole;
+  phase: Phase;
+  createdAt: string;
+  label: string;
+  messageCount: number;
+  lastMessageAt: string | null;
+  isEmpty: boolean;
+}
+
 export const PHASES: PhaseInfo[] = [
   {
     id: "brainstorm",

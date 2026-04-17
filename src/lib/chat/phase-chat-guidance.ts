@@ -1,6 +1,15 @@
 import { analyzeBrainstormProgress } from "@/lib/chat/brainstorm-progress";
-import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
-import type { AgentRole, DocumentType, Phase } from "@/types";
+import {
+  DOCUMENT_TYPE_LABELS,
+  DOCUMENT_TYPE_OWNER_ROLE,
+} from "@/lib/documents/catalog";
+import { getPhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
+import type {
+  AgentRole,
+  DocumentType,
+  Phase,
+  ProjectDocument,
+} from "@/types";
 import type { ChatUIMessage } from "@/types/chat";
 
 export interface QuickStartAction {
@@ -8,6 +17,15 @@ export interface QuickStartAction {
   label: string;
   prompt: string;
   matchPhrases?: string[];
+}
+
+export interface ConversationSuggestion {
+  id: string;
+  label: string;
+  prompt: string;
+  role: AgentRole;
+  description?: string;
+  documentType?: DocumentType;
 }
 
 export interface PhaseProgressCriterion {
@@ -111,14 +129,21 @@ function matchesQuickStartAction(messageText: string, action: QuickStartAction) 
 
 function buildChecklistMaterialStatusLabel(
   requiredDocuments: DocumentType[],
-  generatedDocuments: DocumentType[]
+  generatedDocuments: DocumentType[],
+  inheritedDocuments: DocumentType[]
 ) {
   if (requiredDocuments.length === 0) {
     return "当前轮以对话沉淀为主，暂不强制生成文档。";
   }
 
-  if (generatedDocuments.length === 0) {
+  if (generatedDocuments.length === 0 && inheritedDocuments.length === 0) {
     return `关键材料还未落成，建议先产出 ${requiredDocuments
+      .map((type) => DOCUMENT_TYPE_LABELS[type])
+      .join(" / ")}。`;
+  }
+
+  if (generatedDocuments.length === 0 && inheritedDocuments.length > 0) {
+    return `当前还沿用上一阶段草稿，建议先在本阶段更新 ${requiredDocuments
       .map((type) => DOCUMENT_TYPE_LABELS[type])
       .join(" / ")}。`;
   }
@@ -137,7 +162,8 @@ function buildChecklistProgressSummary(
   criteria: PhaseProgressCriterion[],
   score: number,
   generatedDocuments: DocumentType[],
-  requiredDocuments: DocumentType[]
+  requiredDocuments: DocumentType[],
+  inheritedDocuments: DocumentType[]
 ) {
   const doneCount = criteria.filter((criterion) => criterion.state === "done").length;
   const partialCount = criteria.filter((criterion) => criterion.state === "partial").length;
@@ -152,6 +178,10 @@ function buildChecklistProgressSummary(
       requiredDocuments.length > 0 &&
       generatedDocuments.length < requiredDocuments.length
     ) {
+      if (inheritedDocuments.length > 0) {
+        return "讨论项已经基本收住，但当前阶段还在沿用旧稿，先把本阶段文档更新并确认。";
+      }
+
       return "讨论项已经基本收住，但关键材料还没全部沉淀，先把文档草稿补齐。";
     }
 
@@ -169,7 +199,18 @@ function buildChecklistProgressSummary(
   return "目前只推进了前半段，先把核心决策讲顺，再进入正式产出。";
 }
 
-function buildChecklistNextAction(criteria: PhaseProgressCriterion[]) {
+function buildChecklistNextAction(
+  criteria: PhaseProgressCriterion[],
+  requiredDocuments: DocumentType[],
+  generatedDocuments: DocumentType[]
+) {
+  const missingDocument = requiredDocuments.find(
+    (type) => !generatedDocuments.includes(type)
+  );
+  if (missingDocument) {
+    return `先把「${DOCUMENT_TYPE_LABELS[missingDocument]}」落成当前阶段正式产出，再判断是否可完成。`;
+  }
+
   const missingCriterion = criteria.find((criterion) => criterion.state === "missing");
   if (missingCriterion) {
     return `优先补齐「${missingCriterion.label}」，这是当前最缺的一环。`;
@@ -201,10 +242,19 @@ function buildChecklistEstimatedTurns(criteria: PhaseProgressCriterion[]) {
   return "建议继续拆小问题，分 3 到 5 轮推进";
 }
 
-function getChecklistReadiness(score: number, criteria: PhaseProgressCriterion[]) {
+function getChecklistReadiness(
+  score: number,
+  criteria: PhaseProgressCriterion[],
+  requiredDocuments: DocumentType[],
+  generatedDocuments: DocumentType[]
+) {
   const missingCount = criteria.filter((criterion) => criterion.state === "missing").length;
 
-  if (score >= 88 && missingCount === 0) {
+  if (
+    score >= 88 &&
+    missingCount === 0 &&
+    generatedDocuments.length === requiredDocuments.length
+  ) {
     return "ready_to_wrap" as const;
   }
 
@@ -216,9 +266,10 @@ function getChecklistReadiness(score: number, criteria: PhaseProgressCriterion[]
 }
 
 function analyzeChecklistProgress(
+  phase: Phase,
   guide: PhaseChatGuideConfig,
   messages: ChatUIMessage[],
-  availableDocumentTypes: DocumentType[]
+  documents: ProjectDocument[]
 ): PhaseProgressAnalysis {
   const normalizedAllMessages = normalizeText(messages.map(getMessageText).join(" "));
   const normalizedAssistantMessages = normalizeText(
@@ -233,11 +284,15 @@ function analyzeChecklistProgress(
       .map(getMessageText)
       .join(" ")
   );
-  const availableDocumentSet = new Set(availableDocumentTypes);
-  const requiredDocuments = guide.materialDocumentTypes;
-  const generatedDocuments = requiredDocuments.filter((type) =>
-    availableDocumentSet.has(type)
-  );
+  const phaseArtifacts = getPhaseArtifactSnapshot(phase, documents);
+  const availableDocumentSet = new Set(documents.map((document) => document.type));
+  const requiredDocuments = phaseArtifacts.requiredDocuments.map((document) => document.type);
+  const generatedDocuments = phaseArtifacts.requiredDocuments
+    .filter((document) => document.state === "current")
+    .map((document) => document.type);
+  const inheritedDocuments = phaseArtifacts.requiredDocuments
+    .filter((document) => document.state === "inherited")
+    .map((document) => document.type);
 
   const criteria = guide.checklist.map((definition) => {
     const hasDocument = (definition.documentTypes ?? []).some((type) =>
@@ -288,7 +343,12 @@ function analyzeChecklistProgress(
   }, 0);
   const score = totalWeight === 0 ? 0 : Math.round((achievedWeight / totalWeight) * 100);
   const flattenedCriteria = criteria.map(({ weight: _weight, ...criterion }) => criterion);
-  const readiness = getChecklistReadiness(score, flattenedCriteria);
+  const readiness = getChecklistReadiness(
+    score,
+    flattenedCriteria,
+    requiredDocuments,
+    generatedDocuments
+  );
   const readyToStop = readiness === "ready_to_wrap";
 
   return {
@@ -302,16 +362,22 @@ function analyzeChecklistProgress(
       flattenedCriteria,
       score,
       generatedDocuments,
-      requiredDocuments
+      requiredDocuments,
+      inheritedDocuments
     ),
-    nextAction: buildChecklistNextAction(flattenedCriteria),
+    nextAction: buildChecklistNextAction(
+      flattenedCriteria,
+      requiredDocuments,
+      generatedDocuments
+    ),
     estimatedTurns: buildChecklistEstimatedTurns(flattenedCriteria),
     criteria: flattenedCriteria,
     generatedDocuments,
     requiredDocuments,
     materialStatusLabel: buildChecklistMaterialStatusLabel(
       requiredDocuments,
-      generatedDocuments
+      generatedDocuments,
+      inheritedDocuments
     ),
   };
 }
@@ -1120,7 +1186,7 @@ export function analyzePhaseProgress(
   role: AgentRole,
   guide: PhaseChatGuideConfig,
   messages: ChatUIMessage[],
-  availableDocumentTypes: DocumentType[]
+  documents: ProjectDocument[]
 ): PhaseProgressAnalysis {
   if (phase === "brainstorm" && role === "pm") {
     const analysis = analyzeBrainstormProgress(messages);
@@ -1142,7 +1208,7 @@ export function analyzePhaseProgress(
     };
   }
 
-  return analyzeChecklistProgress(guide, messages, availableDocumentTypes);
+  return analyzeChecklistProgress(phase, guide, messages, documents);
 }
 
 export function getRemainingQuickStartActions(
@@ -1163,4 +1229,75 @@ export function getRemainingQuickStartActions(
   );
 
   return actions.filter((action) => !completedActions.has(action.id));
+}
+
+function getDocumentConversationPrompt(type: DocumentType) {
+  switch (type) {
+    case "prd":
+      return "请基于当前已经确认的需求结论，直接整理一版可评审的 PRD 正式稿。要求输出结构化文档，并明确产品概述、用户故事、P0/P1/P2、业务流程和非功能需求。";
+    case "user_flow":
+      return "请基于当前 PRD 和已有结论，输出一版完整用户流程文档，讲清主流程、关键分支、决策点和页面跳转关系。";
+    case "wireframe":
+      return "请基于当前需求和用户流程，输出一版页面结构与线框说明，覆盖页面清单、布局分区、核心组件和关键交互。";
+    case "architecture":
+      return "请基于当前需求与设计结论，直接输出系统架构设计文档，说明技术选型、模块边界、数据流和部署方案。";
+    case "db_schema":
+      return "请基于当前架构与业务结论，输出数据库设计文档，包含核心实体、表结构、关系和索引策略。";
+    case "api_spec":
+      return "请基于当前架构与产品需求，输出 API 设计文档，覆盖接口清单、请求响应结构、错误码和认证策略。";
+    case "test_plan":
+      return "请基于当前项目产出，输出测试方案和上线前质量清单，包含测试策略、核心用例、边界场景和验收标准。";
+    case "project_plan":
+      return "请基于当前阶段全部产出，输出项目计划，包含里程碑、任务拆解、风险清单和优先级。";
+    default:
+      return "请基于当前已经确认的结论，整理一版结构化正式产出。";
+  }
+}
+
+export function getConversationSuggestions(
+  phase: Phase,
+  role: AgentRole,
+  guide: PhaseChatGuideConfig,
+  messages: ChatUIMessage[],
+  documents: ProjectDocument[]
+): ConversationSuggestion[] {
+  const suggestions: ConversationSuggestion[] = [];
+  const remainingActions = getRemainingQuickStartActions(messages, guide.actions);
+  const phaseArtifacts = getPhaseArtifactSnapshot(phase, documents);
+
+  for (const document of phaseArtifacts.requiredDocuments) {
+    if (document.state === "current") {
+      continue;
+    }
+
+    suggestions.push({
+      id: `document-${document.type}`,
+      label:
+        document.state === "inherited"
+          ? `更新${document.label}`
+          : `产出${document.label}`,
+      prompt: getDocumentConversationPrompt(document.type),
+      role: document.ownerRole ?? role,
+      description: document.hint,
+      documentType: document.type,
+    });
+  }
+
+  for (const action of remainingActions) {
+    suggestions.push({
+      id: `action-${action.id}`,
+      label: action.label,
+      prompt: action.prompt,
+      role,
+    });
+  }
+
+  const deduped = new Map<string, ConversationSuggestion>();
+  for (const suggestion of suggestions) {
+    if (!deduped.has(suggestion.id)) {
+      deduped.set(suggestion.id, suggestion);
+    }
+  }
+
+  return [...deduped.values()].slice(0, 4);
 }

@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       .set({
         content: body.content,
         title: body.title || existing.title,
+        phase: body.phase || existing.phase,
         version: existing.version + 1,
         updatedAt: new Date(),
       })

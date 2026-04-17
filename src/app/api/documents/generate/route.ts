@@ -158,7 +158,9 @@ export async function POST(req: NextRequest) {
     if (existing) {
       db.update(schema.documents)
         .set({
+          title: DOCUMENT_TYPE_LABELS[documentType] || documentType,
           content: text,
+          phase,
           version: existing.version + 1,
           updatedAt: new Date(),
         })

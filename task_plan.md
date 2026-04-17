@@ -11,3 +11,14 @@
 
 ## Errors Encountered
 - `node node_modules/typescript/bin/tsc --noEmit --pretty false` 首次失败，原因是新 checklist 进度分析里 `state` 被推断为普通 `string`。补上显式字面量类型后已解决。
+
+## 2026-04-17 Current Investigation
+
+### Goal
+分析“需求定义阶段已显示可以收口/确认完成，但实际结构化产出未落地、右侧文档未同步、AI 文案仍提示继续产出”的体验错位，并形成细化优化方案。
+
+### Phases
+- [complete] 读取当前项目最近一次 requirements 对话、phase gate、文档记录，确认用户反馈是否与真实数据一致。
+- [complete] 对照顶部阶段卡、聊天建议、右侧文档面板和文档同步逻辑，定位状态判断与文档落地链路的断点。
+- [complete] 输出面向产品设计和实现的优化建议，覆盖状态机、文档同步、按钮 gating 和 AI 文案策略。
+- [complete] 实现统一阶段产出状态、多会话 tab、底部产出建议新开独立对话、右侧文档即时同步，以及阶段审批服务端校验。

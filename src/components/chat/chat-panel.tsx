@@ -25,11 +25,12 @@ import { PhaseContextCard } from "@/components/chat/phase-context-card";
 import { extractQuestionnaireFromMessage } from "@/lib/chat/questionnaire";
 import {
   analyzePhaseProgress,
+  getConversationSuggestions,
   getPhaseChatGuide,
-  getRemainingQuickStartActions,
-  type QuickStartAction,
+  type ConversationSuggestion,
 } from "@/lib/chat/phase-chat-guidance";
-import type { AgentRole, DocumentType, Phase } from "@/types";
+import { getPhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
+import type { AgentRole, Phase, ProjectDocument } from "@/types";
 import type {
   ChatStatusData,
   ChatUIMessage,
@@ -111,13 +112,17 @@ interface ChatPanelProps {
   role: AgentRole;
   phase: Phase;
   hasExistingPrd?: boolean;
-  availableDocumentTypes?: DocumentType[];
+  documents?: ProjectDocument[];
   showPhaseActions?: boolean;
   isPhaseApproved?: boolean;
   onApprovePhase?: () => void;
   onAdvancePhase?: () => void;
   initialMessages?: PersistedChatMessage[];
   onDocumentGenerated?: () => void;
+  autoStartPrompt?: string | null;
+  autoStartKey?: string | null;
+  onAutoStartConsumed?: (key: string) => void;
+  onOpenSuggestionConversation?: (suggestion: ConversationSuggestion) => void;
 }
 
 export function ChatPanel({
@@ -126,15 +131,20 @@ export function ChatPanel({
   role,
   phase,
   hasExistingPrd = false,
-  availableDocumentTypes = [],
+  documents = [],
   showPhaseActions = false,
   isPhaseApproved = false,
   onApprovePhase,
   onAdvancePhase,
   initialMessages = [],
   onDocumentGenerated,
+  autoStartPrompt,
+  autoStartKey,
+  onAutoStartConsumed,
+  onOpenSuggestionConversation,
 }: ChatPanelProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+  const autoStartRef = useRef<string | null>(null);
   const agent = getAgentById(role);
 
   const seedMessages = useMemo(
@@ -149,7 +159,6 @@ export function ChatPanel({
     sendMessage,
     regenerate,
     status,
-    error,
     clearError,
     setMessages,
     stop,
@@ -171,11 +180,21 @@ export function ChatPanel({
     },
   });
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  const scrollToBottom = useCallback(() => {
+    const viewport = scrollRootRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
+
+    if (!viewport) {
+      return;
     }
-  }, [messages]);
+
+    viewport.scrollTop = viewport.scrollHeight;
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, conversationId, scrollToBottom]);
 
   const isGenerating = status === "streaming" || status === "submitted";
   const phaseGuide = useMemo(
@@ -189,24 +208,29 @@ export function ChatPanel({
         role,
         phaseGuide,
         messages,
-        availableDocumentTypes
+        documents
       ),
-    [availableDocumentTypes, messages, phase, phaseGuide, role]
+    [documents, messages, phase, phaseGuide, role]
   );
-  const remainingQuickStartActions = useMemo(() => {
-    return getRemainingQuickStartActions(messages, phaseGuide.actions);
-  }, [messages, phaseGuide]);
+  const phaseArtifacts = useMemo(
+    () => getPhaseArtifactSnapshot(phase, documents),
+    [documents, phase]
+  );
+  const conversationSuggestions = useMemo(
+    () => getConversationSuggestions(phase, role, phaseGuide, messages, documents),
+    [documents, messages, phase, phaseGuide, role]
+  );
   const composerPlaceholder = useMemo(
     () => getComposerPlaceholder(phase, role),
     [phase, role]
   );
   const composerSuggestionTitle = useMemo(() => {
-    if (remainingQuickStartActions.length === 0) {
+    if (conversationSuggestions.length === 0) {
       return "";
     }
 
-    return messages.length === 0 ? "你可以这样开始" : "你还可以这样继续";
-  }, [messages.length, remainingQuickStartActions.length]);
+    return messages.length === 0 ? "建议从这些产出开始" : "下一步建议优先补这些产出";
+  }, [conversationSuggestions.length, messages.length]);
 
   const handleSend = useCallback(
     (message: string) => {
@@ -232,6 +256,30 @@ export function ChatPanel({
     if (!isGenerating) return;
     stop();
   }, [isGenerating, stop]);
+
+  useEffect(() => {
+    if (!autoStartPrompt || !autoStartKey || isGenerating || messages.length > 0) {
+      return;
+    }
+
+    if (autoStartRef.current === autoStartKey) {
+      return;
+    }
+
+    autoStartRef.current = autoStartKey;
+    setPersistedError(null);
+    clearError();
+    sendMessage({ text: autoStartPrompt });
+    onAutoStartConsumed?.(autoStartKey);
+  }, [
+    autoStartKey,
+    autoStartPrompt,
+    clearError,
+    isGenerating,
+    messages.length,
+    onAutoStartConsumed,
+    sendMessage,
+  ]);
 
   const handleEditResend = useCallback(
     async (messageId: string, content: string) => {
@@ -279,16 +327,17 @@ export function ChatPanel({
         phase={phase}
         guide={phaseGuide}
         progress={phaseProgress}
+        phaseArtifacts={phaseArtifacts}
         hasMessages={messages.length > 0}
         storageKey={`${phase}-${role}`}
         showPhaseActions={showPhaseActions}
         isApproved={isPhaseApproved}
-        canApprove={phaseProgress.readyToStop}
+        canApprove={phaseProgress.readyToStop && phaseArtifacts.hasAllRequiredDocuments}
         onApprovePhase={onApprovePhase}
         onAdvancePhase={onAdvancePhase}
       />
 
-      <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
+      <ScrollArea className="flex-1 min-h-0" ref={scrollRootRef}>
         <ChatTranscript
           phase={phase}
           hasExistingPrd={hasExistingPrd}
@@ -311,9 +360,9 @@ export function ChatPanel({
         isGenerating={isGenerating}
         placeholder={composerPlaceholder}
         suggestionTitle={composerSuggestionTitle}
-        suggestions={remainingQuickStartActions}
+        suggestions={conversationSuggestions}
         onSend={handleSend}
-        onSuggestionSelect={handleSend}
+        onSuggestionSelect={onOpenSuggestionConversation}
         onStop={handleStop}
       />
     </div>
@@ -645,9 +694,9 @@ interface ChatComposerProps {
   isGenerating: boolean;
   placeholder: string;
   suggestionTitle?: string;
-  suggestions?: QuickStartAction[];
+  suggestions?: ConversationSuggestion[];
   onSend: (message: string) => void;
-  onSuggestionSelect?: (message: string) => void;
+  onSuggestionSelect?: (suggestion: ConversationSuggestion) => void;
   onStop: () => void;
 }
 
