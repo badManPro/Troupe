@@ -142,6 +142,8 @@ export function ChatPanel({
     [initialMessages]
   );
 
+  const [persistedError, setPersistedError] = useState<Error | null>(null);
+
   const {
     messages,
     sendMessage,
@@ -159,8 +161,13 @@ export function ChatPanel({
       body: { projectId, conversationId, role, phase },
     }),
     messages: seedMessages,
-    onFinish: () => {
-      onDocumentGenerated?.();
+    onFinish: ({ isError }) => {
+      if (!isError) {
+        onDocumentGenerated?.();
+      }
+    },
+    onError: (error) => {
+      setPersistedError(error);
     },
   });
 
@@ -204,17 +211,21 @@ export function ChatPanel({
   const handleSend = useCallback(
     (message: string) => {
       if (!message.trim() || isGenerating) return;
+      setPersistedError(null);
+      clearError();
       sendMessage({ text: message.trim() });
     },
-    [isGenerating, sendMessage]
+    [isGenerating, sendMessage, clearError]
   );
 
   const handleQuestionnaireSubmit = useCallback(
     (message: string) => {
       if (isGenerating) return;
+      setPersistedError(null);
+      clearError();
       sendMessage({ text: message });
     },
-    [isGenerating, sendMessage]
+    [isGenerating, sendMessage, clearError]
   );
 
   const handleStop = useCallback(() => {
@@ -245,6 +256,7 @@ export function ChatPanel({
         toChatUIMessage
       );
 
+      setPersistedError(null);
       clearError();
       flushSync(() => {
         setMessages(nextMessages);
@@ -284,10 +296,11 @@ export function ChatPanel({
           agentId={agent?.id}
           messages={messages}
           isGenerating={isGenerating}
-          errorMessage={error?.message}
+          errorMessage={persistedError?.message}
           onQuestionnaireSubmit={handleQuestionnaireSubmit}
           onEditResend={handleEditResend}
           onRetry={() => {
+            setPersistedError(null);
             clearError();
             regenerate();
           }}

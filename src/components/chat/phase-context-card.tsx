@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { tagColors } from "@/lib/tag-colors";
 import { cn } from "@/lib/utils";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import type {
@@ -30,8 +31,7 @@ const READINESS_COPY: Record<
 > = {
   needs_more: {
     label: "继续推进",
-    tone:
-      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
+    tone: tagColors.orangeOutline,
     icon: Sparkles,
   },
   good_enough: {
@@ -42,8 +42,7 @@ const READINESS_COPY: Record<
   },
   ready_to_wrap: {
     label: "可以收口",
-    tone:
-      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
+    tone: tagColors.greenOutline,
     icon: CheckCircle2,
   },
 };
@@ -313,10 +312,8 @@ export function PhaseContextCard({
                     variant="outline"
                     className={cn(
                       "rounded-full px-2.5 py-1 text-[11px]",
-                      criterion.state === "done" &&
-                        "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
-                      criterion.state === "partial" &&
-                        "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
+                      criterion.state === "done" && tagColors.greenOutline,
+                      criterion.state === "partial" && tagColors.orangeOutline,
                       criterion.state === "missing" &&
                         "border-border/80 bg-background/70 text-muted-foreground"
                     )}
@@ -343,7 +340,7 @@ export function PhaseContextCard({
                           className={cn(
                             "rounded-full px-2.5 py-1 text-[11px]",
                             ready
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                              ? tagColors.greenOutline
                               : "border-border/80 bg-background/70 text-muted-foreground"
                           )}
                         >

@@ -23,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { tagColors } from "@/lib/tag-colors";
 
 type AiProvider = "openai" | "codex";
 
@@ -292,7 +293,7 @@ export default function SettingsPage() {
                 {connected ? (
                   <Badge
                     variant="secondary"
-                    className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                    className={tagColors.greenSurface}
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     已连接
@@ -300,7 +301,7 @@ export default function SettingsPage() {
                 ) : (
                   <Badge
                     variant="secondary"
-                    className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    className={tagColors.orangeSurface}
                   >
                     <AlertCircle className="w-3 h-3 mr-1" />
                     未配置
@@ -383,7 +384,7 @@ export default function SettingsPage() {
                 {codexStatus?.authenticated ? (
                   <Badge
                     variant="secondary"
-                    className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                    className={tagColors.greenSurface}
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     已连接 Codex CLI
@@ -392,7 +393,7 @@ export default function SettingsPage() {
                 ) : codexStatus?.installed ? (
                   <Badge
                     variant="secondary"
-                    className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    className={tagColors.orangeSurface}
                   >
                     <AlertCircle className="w-3 h-3 mr-1" />
                     未登录 Codex CLI

@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { PHASES, type Phase, getPhaseIndex } from "@/types";
+import { tagColors } from "@/lib/tag-colors";
 import {
   Lightbulb,
   FileText,
@@ -78,7 +79,7 @@ export function PhaseSidebar({
                       className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs",
                         isApproved
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          ? tagColors.greenSurface
                           : isProjectPhase
                             ? "bg-primary/15 text-primary"
                             : isLocked

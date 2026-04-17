@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { AgentRole, Phase } from "@/types";
 import { getAgentsForPhase } from "@/lib/agents/registry";
+import { tagColors } from "@/lib/tag-colors";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Briefcase,
@@ -27,11 +28,11 @@ const roleIcons: Record<AgentRole, React.ReactNode> = {
 const roleColors: Record<AgentRole, string> = {
   pm: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
   designer: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  architect: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  architect: tagColors.greenSurface,
   frontend: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
   backend: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
   qa: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-  coordinator: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  coordinator: tagColors.orangeSurface,
 };
 
 interface RoleTabsProps {

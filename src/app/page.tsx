@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WindowHeader } from "@/components/layout/window-header";
+import { tagColors } from "@/lib/tag-colors";
 import {
   Dialog,
   DialogContent,
@@ -56,10 +57,10 @@ const phaseLabels: Record<Phase, string> = {
 };
 
 const phaseColors: Record<Phase, string> = {
-  brainstorm: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  brainstorm: tagColors.orangeSurface,
   requirements: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   design: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  architecture: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  architecture: tagColors.greenSurface,
   development: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   delivery: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
 };
