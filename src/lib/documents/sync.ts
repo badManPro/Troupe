@@ -159,9 +159,33 @@ function detectDerivedDocuments({
     });
   }
 
+  const requirementsReviewContent = extractDocumentFromHeading(
+    content,
+    /(^|\n)#\s*(?:qa\s*(?:需求)?(?:审查|评审)(?:结论)?|需求\s*qa\s*评审|需求评审)/i
+  );
+  if (
+    conversationRole === "qa" &&
+    conversationPhase === "requirements" &&
+    requirementsReviewContent &&
+    /##\s*(?:最优先补齐的缺口|边界场景(?:与异常流程)?|验收标准(?:草案)?)/i.test(
+      requirementsReviewContent
+    ) &&
+    /##\s*(?:当前最高风险|最需要现在确认的开放问题|风险(?:与开放问题)?)/i.test(
+      requirementsReviewContent
+    )
+  ) {
+    matches.push({
+      type: "requirements_review",
+      title: DOCUMENT_TYPE_LABELS.requirements_review,
+      content: requirementsReviewContent,
+      phase: conversationPhase,
+    });
+  }
+
   const testPlanContent = extractDocumentFromHeading(content, /(^|\n)#\s*测试方案/);
   if (
     conversationRole === "qa" &&
+    conversationPhase === "delivery" &&
     testPlanContent &&
     /##\s*测试策略/.test(testPlanContent)
   ) {

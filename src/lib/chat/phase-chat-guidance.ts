@@ -1235,6 +1235,8 @@ function getDocumentConversationPrompt(type: DocumentType) {
   switch (type) {
     case "prd":
       return "请基于当前已经确认的需求结论，直接整理一版可评审的 PRD 正式稿。要求输出结构化文档，并明确产品概述、用户故事、P0/P1/P2、业务流程和非功能需求。";
+    case "requirements_review":
+      return "请基于当前 PRD 和已有 QA 讨论，输出一版结构化 QA 评审结论，覆盖最优先补齐的缺口、边界场景与异常流程、验收标准草案、当前最高风险和开放问题。";
     case "user_flow":
       return "请基于当前 PRD 和已有结论，输出一版完整用户流程文档，讲清主流程、关键分支、决策点和页面跳转关系。";
     case "wireframe":

@@ -1,30 +1,72 @@
-# Progress
+# Progress Log
 
-- 2026-04-17: 读取聊天面板、需求定义引导、头脑风暴进度卡、阶段/角色配置和文档目录，确认顶部模块目前只覆盖少数阶段且实现分散。
-- 2026-04-17: 明确本轮改造方向为“phase/role 驱动的统一聊天引导层 + 通用顶部模块”，并记录到 task_plan/findings。
-- 2026-04-17: 新增 `src/lib/chat/phase-chat-guidance.ts`，统一承载所有 phase/role 的目标、讨论重点、材料、建议动作与进度分析逻辑。
-- 2026-04-17: 新增 `src/components/chat/phase-context-card.tsx`，把“当前轮要做什么 / 要讨论什么 / 应沉淀什么 / 当前进度”统一成可折叠顶部模块。
-- 2026-04-17: 更新 `src/components/chat/chat-panel.tsx` 与 `src/app/project/[id]/page.tsx`，让聊天面板对所有阶段展示顶部导航卡和输入区建议条，并接入项目文档状态。
-- 2026-04-17: 删除 `src/components/chat/requirements-guide-card.tsx`、`src/components/chat/brainstorm-progress-card.tsx` 和 `src/lib/chat/requirements-guide.ts`，移除旧的阶段专用双轨实现。
-- 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
-- 2026-04-17: 把阶段操作从底部 `PhaseGateBar` 收到 `PhaseContextCard`，进度卡现在会根据 `phaseProgress.readyToStop` 决定 `确认完成` 是否可点。
-- 2026-04-17: 删除 `src/components/workspace/phase-gate-bar.tsx`，避免顶部和底部出现两套阶段推进入口。
-- 2026-04-17: 再次运行 `node node_modules/typescript/bin/tsc --noEmit --pretty false`，通过。
-- 2026-04-17: 读取当前项目 `个人学习规划助手` 的最新 requirements 对话、phase gate 和 documents 表，确认最新 PM 回复已经产出完整 PRD，但 documents 表仍只有 `brainstorm` 阶段的旧 `prd`。
-- 2026-04-17: 对照 `phase-context-card`、`chat-panel`、`document-panel`、`phase-gate`、`documents/sync` 和相关 API，定位“可收口判断”“文档落地”“右侧刷新”使用了三套不同规则。
-- 2026-04-17: 记录当前体验问题的根因：前端启发式 readyToStop、服务端无校验、派生文档只按 type 去重、文档面板对同 id 更新不刷新，以及 assistant 文案在“已收口”和“继续产出”之间冲突。
-- 2026-04-17: 新增 `src/lib/workspace/phase-artifacts.ts`，把当前阶段必交付文档状态统一抽成 `missing / inherited / current` 三态，供顶部卡片、右侧文档面板和阶段审批共用。
-- 2026-04-17: 更新 `src/lib/documents/sync.ts`，派生文档改为按类型 upsert，并支持从 PM / 设计 / 架构 / QA / 协调员的结构化回复里同步阶段文档，解决“聊天已产出但右侧不更新”。
-- 2026-04-17: 更新 `/api/projects/[id]`、`/api/documents/generate`、`/api/documents`、`/api/projects/[id]/phase-gate`，让项目读取先同步文档、后续阶段重新生成会覆盖 phase，并在服务端阻止缺少必交付文档时直接 approve。
-- 2026-04-17: 重构 `/api/projects/[id]/conversations` 和项目工作台，支持同一 phase/role 下多会话 tab；底部建议点击后会新建独立对话并自动发送 starter prompt。
-- 2026-04-17: 更新 `chat-panel`、`phase-context-card`、`chat-prompt-suggestions` 和 `document-panel`，让顶部、底部和右侧都基于同一份阶段产出状态显示进度、缺口、已确认文档和待补文档。
-- 2026-04-17: 修复聊天区滚动定位，进入会话或追加消息时默认滚到底部。
-- 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
-- 2026-04-17: 复核需求定义阶段的 PM/QA 流程，确认当前“对话建议”只代表当前角色的快捷入口，不是阶段必做项；`approve` 仅校验 `prd`，不会强制 QA 评审完成。
-- 2026-04-17: 记录当前产品定义结论：QA 在 requirements 阶段被实现为可选第二视角，而不是门禁节点，因此用户对“剩余两个建议要不要做、QA 到底要不要进”产生明显不确定性。
-- 2026-04-17: 确认本轮改造方向为 requirements 标准顺序流：PM 收口后才能进入 QA，QA 完成后才能 approve；计划复用 `phase_gates.checklist` 持久化 PM 子步骤状态。
-- 2026-04-17: 新增 `src/lib/workspace/requirements-phase.ts`，统一承载 requirements 子流程状态、PM 子步骤持久化和 PM/QA 双角色进度计算。
-- 2026-04-17: 更新 `/api/projects/[id]`，让项目读取直接返回 requirements `phaseWorkflow`，供页面决定默认角色、QA 是否解锁和阶段主按钮文案。
-- 2026-04-17: 更新 `/api/projects/[id]/phase-gate`，新增 `complete_requirements_pm` 动作，并在 requirements 的最终 approve 前强制校验“PM 已完成 + QA checklist 已完成”。
-- 2026-04-17: 更新 `src/app/project/[id]/page.tsx`、`src/components/workspace/role-tabs.tsx`、`src/components/chat/chat-panel.tsx`、`src/components/chat/phase-context-card.tsx`，把 requirements 阶段改成 `PM 收口 -> QA 评审 -> 确认完成` 的两步门流程。
-- 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
+## Session: 2026-04-17
+
+### Phase 1: Discovery
+- **Status:** complete
+- **Started:** 2026-04-17
+- Actions taken:
+  - 检查了 QA 阶段指导文案、agent 提示词、文档类型目录、右侧文档面板和自动同步逻辑。
+  - 确认当前 requirements QA 输出不会被同步成文档，因此右侧刷新后仍无变化。
+- Files created/modified:
+  - `task_plan.md` (created)
+  - `findings.md` (created)
+  - `progress.md` (created)
+
+### Phase 2: Planning
+- **Status:** complete
+- Actions taken:
+  - 确定新增独立的 requirements QA 文档类型，并保持 delivery 的 `test_plan` 不变。
+- Files created/modified:
+  - `task_plan.md` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
+### Phase 3: Implementation
+- **Status:** complete
+- Actions taken:
+  - 为共享 `DocumentType` 和文档标签增加 `requirements_review`。
+  - 重写 QA agent 的 phase-specific 输出模板，区分 requirements 评审结论与 delivery 测试方案。
+  - 更新聊天同步逻辑：requirements 阶段识别 `# QA 审查结论`，delivery 阶段才识别 `# 测试方案`。
+  - 把当前 `phase` 注入聊天和文档生成 prompt，降低 QA 阶段模板混用概率。
+- Files created/modified:
+  - `src/types/index.ts`
+  - `src/lib/documents/catalog.ts`
+  - `src/lib/agents/roles/qa.ts`
+  - `src/lib/documents/sync.ts`
+  - `src/lib/chat/phase-chat-guidance.ts`
+  - `src/app/api/chat/route.ts`
+  - `src/app/api/documents/generate/route.ts`
+  - `src/app/project/[id]/documents/page.tsx`
+
+### Phase 4: Verification
+- **Status:** complete
+- Actions taken:
+  - 先用当前数据库中的 QA 审查记录做正则匹配验证，确认现有 `# QA 审查结论` 会命中新规则。
+  - 运行 `npm run build` 做生产构建验证；首次失败是因为沙箱网络拦截了 `next/font` 拉取 Google Fonts，提权后构建通过。
+- Files created/modified:
+  - `task_plan.md` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Discovery consistency check | 阅读阶段定义与同步逻辑 | 找到右侧不更新的单一根因链路 | 已确认是缺少 requirements QA 文档同步 | ✓ |
+| Requirements QA parser match | 当前库中的 `# QA 审查结论` 消息 | 命中新 `requirements_review` 识别条件 | `heading=true, sections=true, matches=true` | ✓ |
+| Production build | `npm run build` | 新文档类型与接口改动可通过编译 | 提权后构建成功，TypeScript 完成 | ✓ |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-17 | `git status` 发现 `troupe.db-shm` 已修改 | 1 | 不触碰数据库运行态文件，继续代码改动 |
+| 2026-04-17 | `npm run build` 首次失败，`next/font` 无法获取 Google Fonts | 1 | 按要求提权重跑构建，验证代码本身无编译问题 |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Phase 5: Delivery |
+| Where am I going? | 无剩余实施步骤，准备交付变更说明 |
+| What's the goal? | 让 requirements QA 产物成为独立结构化文档并显示在右侧 |
+| What have I learned? | requirements QA 历史输出已经有可稳定识别的结构，可直接回填成文档 |
+| What have I done? | 已完成实现并通过构建与样本匹配验证 |

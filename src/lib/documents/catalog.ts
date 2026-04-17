@@ -2,6 +2,7 @@ import type { AgentRole, DocumentType, Phase } from "@/types";
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   prd: "产品需求文档",
+  requirements_review: "QA 评审结论",
   user_flow: "用户流程",
   wireframe: "线框图描述",
   architecture: "架构设计",
@@ -22,6 +23,7 @@ export const PHASE_DOCUMENT_TYPES: Record<Phase, DocumentType[]> = {
 
 export const DOCUMENT_TYPE_OWNER_ROLE: Record<DocumentType, AgentRole> = {
   prd: "pm",
+  requirements_review: "qa",
   user_flow: "designer",
   wireframe: "designer",
   architecture: "architect",

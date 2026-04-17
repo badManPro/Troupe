@@ -31,17 +31,6 @@ interface Document {
   updatedAt: string;
 }
 
-const docTypeLabels: Record<string, string> = {
-  prd: "产品需求文档",
-  user_flow: "用户流程",
-  wireframe: "线框图描述",
-  architecture: "架构设计",
-  api_spec: "API 设计",
-  db_schema: "数据库设计",
-  test_plan: "测试方案",
-  project_plan: "项目计划",
-};
-
 export default function DocumentsPage({
   params,
 }: {

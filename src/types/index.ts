@@ -17,6 +17,7 @@ export type AgentRole =
 
 export type DocumentType =
   | "prd"
+  | "requirements_review"
   | "user_flow"
   | "wireframe"
   | "architecture"

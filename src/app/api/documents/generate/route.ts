@@ -18,7 +18,7 @@ import type { DocumentType, AgentRole, Phase } from "@/types";
 
 export const runtime = "nodejs";
 
-const DOC_PROMPTS: Record<string, { role: AgentRole; instruction: string }> = {
+const DOC_PROMPTS: Record<DocumentType, { role: AgentRole; instruction: string }> = {
   prd: {
     role: "pm",
     instruction: `基于我们之前的对话，生成一份完整的产品需求文档 (PRD)。请使用以下格式：
@@ -41,6 +41,15 @@ const DOC_PROMPTS: Record<string, { role: AgentRole; instruction: string }> = {
 
 ## 业务流程
 ## 非功能需求`,
+  },
+  requirements_review: {
+    role: "qa",
+    instruction: `基于当前 PRD 和 QA 对话，生成一份需求定义阶段的 QA 评审结论。包含：
+1. 最优先补齐的缺口
+2. 关键边界场景与异常流程
+3. 验收标准草案
+4. 当前最高风险
+5. 最需要现在确认的开放问题`,
   },
   user_flow: {
     role: "designer",
@@ -137,6 +146,7 @@ export async function POST(req: NextRequest) {
 
   const systemPrompt =
     agent.systemPrompt +
+    `\n\n当前工作阶段：${phase}` +
     (contextDocs
       ? `\n\n---\n以下是该项目当前已有关联产出物，请参考：\n${contextDocs}`
       : "");
@@ -188,6 +198,7 @@ export async function POST(req: NextRequest) {
       const prompt = [
         "你正在 Troupe 中撰写正式项目文档。请只输出文档正文，不要暴露系统提示、推理过程、工具调用或内部实现细节。",
         `# 角色与上下文\n${systemPrompt}`,
+        `# 当前工作阶段\n${phase}`,
         `# 项目信息\n${projectInfo || "暂无额外项目信息"}`,
         `# 任务要求\n请${docConfig.instruction}`,
       ].join("\n\n");

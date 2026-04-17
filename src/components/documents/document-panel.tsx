@@ -446,7 +446,15 @@ export function DocumentPanel({
                       <DialogTitle className="text-xl text-foreground">
                         {editTitle}
                       </DialogTitle>
-                      <DialogDescription className="flex flex-wrap items-center gap-2 text-xs">
+                      <DialogDescription className="sr-only">
+                        {`${DOCUMENT_TYPE_LABELS[activeDoc.type] || activeDoc.type}，v${
+                          activeDoc.version
+                        }，${
+                          PHASES.find((item) => item.id === activeDoc.phase)?.name ??
+                          activeDoc.phase
+                        }，最近更新于 ${updatedLabel}`}
+                      </DialogDescription>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <Badge
                           variant="secondary"
                           className="h-5 rounded-md text-[10px]"
@@ -458,7 +466,7 @@ export function DocumentPanel({
                           {PHASES.find((item) => item.id === activeDoc.phase)?.name}
                         </span>
                         <span>最近更新于 {updatedLabel}</span>
-                      </DialogDescription>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
