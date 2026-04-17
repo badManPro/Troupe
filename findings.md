@@ -21,3 +21,31 @@
 - 当前项目数据库中最新 `requirements / pm` 对话最后一条 assistant 消息已经输出完整 `# 产品需求文档 (PRD)`，但 documents 表里仍只有一条 `phase=brainstorm` 的 `prd` 记录，说明“聊天已产出”和“右侧文档落地”确实发生了断裂。
 - `DocumentPanel` 在 `documents` 更新后只在 `activeDoc.id` 变化时才刷新 `editContent/editTitle`；如果同一文档记录被更新为新版本，右侧面板可能继续显示旧内容。
 - PM 系统提示要求在需求定义阶段持续提醒“这个阶段会产出什么”，而 assistant 在输出完整 PRD 后又继续建议“进入两块高价值产出”，会让用户同时收到“已完成”和“还没完成”的混合信号。
+
+## 2026-04-17 需求定义阶段的 QA 存在感分析
+
+- 需求定义阶段虽然声明了两个角色 `pm` 和 `qa`，但项目页进入该阶段时默认激活的是第一个角色 `pm`，因此用户天然先被带到 PM 线程，而不是一个带分步引导的联合流程。
+- 顶部和输入区的“建议”都是按当前 role 各自计算的；PM 线程只会给 PM 动作，QA 线程只会给 QA 动作，不会在 PM 收口后主动把下一步升级成“切到 QA 做评审”。
+- “剩余几个建议”本质上是当前角色下的快捷入口，不是阶段必做清单；建议是否消失，只取决于用户是否发过近似 prompt 并收到回复，不代表阶段标准已全部满足。
+- 需求定义阶段的服务端门禁只校验当前阶段必交付文档是否存在；对于该阶段，唯一硬门槛是 `prd`，没有把 QA 评审、验收标准、边界场景或风险清单纳入 approve 必选条件。
+- 前端的 `确认完成` 可点条件是“当前 role 的进度 readyToStop 且必交付文档齐了”。因此当用户停留在 PM tab 时，只要 PM 视角已经收口并且 PRD 已落地，就可以直接完成整个 requirements 阶段，QA 不构成硬阻塞。
+- QA 在当前实现里更像“强推荐的第二视角”而不是“需求定义阶段的必经角色”，这正是用户会感到 QA 存在感归零、到底要不要点 QA 没有明确答案的根因。
+
+## 2026-04-17 Requirements 标准顺序流改造方案
+
+- `requirements` 阶段应拆成两步门：`PM 收口` 与 `QA 评审`。其中 PM 完成是进入 QA 的前置条件，QA 完成是整个阶段 approve 的前置条件。
+- `phase_gates.checklist` 目前没有承担实际语义，适合复用为 requirements 的子流程持久化状态；至少需要记住“PM 收口已完成”，避免刷新后又回到并列角色语义。
+- PM 是否可进入下一步，服务端至少要同时校验两件事：当前阶段 `prd` 已落地，以及 PM 视角的 checklist 已达到 `readyToStop`。否则“生成了 PRD 草稿”仍可能被误判为已收口。
+- QA 是否允许最终 approve，不应只看文档，因为 requirements 阶段没有 QA 专属文档；应直接复用现有 QA checklist 语义分析结果，要求 `边界/异常`、`验收标准`、`风险/开放问题` 三项收齐。
+- 为了把顺序流讲明白，QA tab 在 PM 完成前应处于禁用态，而不是仅靠 note 文案提示“先让 PM 收住再回来”。
+- 顶部阶段卡的主按钮需要从单一“确认完成”改成随阶段子步骤变化的动作：PM 侧显示“进入 QA 评审”，QA 侧在满足条件后才显示“确认完成”。
+- 需求定义阶段重新进入时，默认角色应该跟随子流程走：PM 未完成时默认进 PM，PM 已完成但阶段未 approve 时默认进 QA。
+
+## 2026-04-17 Requirements 标准顺序流已实现
+
+- 新增 `src/lib/workspace/requirements-phase.ts` 作为 requirements 子流程的唯一状态源，统一计算 `canStartQa`、`canApprove` 和 `pmStepCompleted`。
+- `/api/projects/[id]` 现在会返回 `phaseWorkflow`，项目页不再只靠当前打开的单个对话去猜 requirements 阶段是否已进入 QA。
+- `/api/projects/[id]/phase-gate` 新增 `complete_requirements_pm` 动作，并在 requirements 的最终 `approve` 前强制校验两层条件：PM 子步骤已完成，且 QA checklist 已收齐。
+- QA tab 现在在 PM 收口完成前不可进入；阶段卡按钮在 requirements 中会按步骤切换成“进入 QA 评审 / 继续 QA 评审 / 确认完成”。
+- requirements 阶段重新打开时，如果 PM 子步骤已经完成，会默认落到 QA 角色，而不是继续回到 PM。
+- 这次改造仍然没有新增 QA 专属文档门槛；QA 的完成定义继续使用现有语义 checklist，这样能保持当前数据模型不变，只把流程门禁补严。

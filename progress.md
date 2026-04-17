@@ -20,3 +20,11 @@
 - 2026-04-17: 更新 `chat-panel`、`phase-context-card`、`chat-prompt-suggestions` 和 `document-panel`，让顶部、底部和右侧都基于同一份阶段产出状态显示进度、缺口、已确认文档和待补文档。
 - 2026-04-17: 修复聊天区滚动定位，进入会话或追加消息时默认滚到底部。
 - 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。
+- 2026-04-17: 复核需求定义阶段的 PM/QA 流程，确认当前“对话建议”只代表当前角色的快捷入口，不是阶段必做项；`approve` 仅校验 `prd`，不会强制 QA 评审完成。
+- 2026-04-17: 记录当前产品定义结论：QA 在 requirements 阶段被实现为可选第二视角，而不是门禁节点，因此用户对“剩余两个建议要不要做、QA 到底要不要进”产生明显不确定性。
+- 2026-04-17: 确认本轮改造方向为 requirements 标准顺序流：PM 收口后才能进入 QA，QA 完成后才能 approve；计划复用 `phase_gates.checklist` 持久化 PM 子步骤状态。
+- 2026-04-17: 新增 `src/lib/workspace/requirements-phase.ts`，统一承载 requirements 子流程状态、PM 子步骤持久化和 PM/QA 双角色进度计算。
+- 2026-04-17: 更新 `/api/projects/[id]`，让项目读取直接返回 requirements `phaseWorkflow`，供页面决定默认角色、QA 是否解锁和阶段主按钮文案。
+- 2026-04-17: 更新 `/api/projects/[id]/phase-gate`，新增 `complete_requirements_pm` 动作，并在 requirements 的最终 approve 前强制校验“PM 已完成 + QA checklist 已完成”。
+- 2026-04-17: 更新 `src/app/project/[id]/page.tsx`、`src/components/workspace/role-tabs.tsx`、`src/components/chat/chat-panel.tsx`、`src/components/chat/phase-context-card.tsx`，把 requirements 阶段改成 `PM 收口 -> QA 评审 -> 确认完成` 的两步门流程。
+- 2026-04-17: `node node_modules/typescript/bin/tsc --noEmit --pretty false` 通过。

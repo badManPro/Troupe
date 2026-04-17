@@ -22,3 +22,14 @@
 - [complete] 对照顶部阶段卡、聊天建议、右侧文档面板和文档同步逻辑，定位状态判断与文档落地链路的断点。
 - [complete] 输出面向产品设计和实现的优化建议，覆盖状态机、文档同步、按钮 gating 和 AI 文案策略。
 - [complete] 实现统一阶段产出状态、多会话 tab、底部产出建议新开独立对话、右侧文档即时同步，以及阶段审批服务端校验。
+
+## 2026-04-17 Requirements Standard Flow Refactor
+
+### Goal
+把 `requirements` 阶段从“PM/QA 并列可选角色”重构为标准顺序流：先 PM 收口 PRD，再进入 QA 评审，最后才允许阶段完成。
+
+### Phases
+- [complete] 设计 requirements 子流程状态模型，明确哪些状态需要持久化，哪些状态可以动态计算。
+- [complete] 实现服务端子流程 helper，并把 `/api/projects/[id]` 与 `/api/projects/[id]/phase-gate` 切到统一校验。
+- [complete] 改造项目页、角色 tabs 和顶部阶段卡，让 QA 在 PM 完成前不可进入，且按钮文案按步骤变化。
+- [complete] 运行类型检查，更新 findings/progress，记录这次从“推荐式 QA”切到“门禁式 QA”的边界。

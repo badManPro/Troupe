@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { PhaseSidebar } from "@/components/workspace/phase-sidebar";
 import { RoleTabs } from "@/components/workspace/role-tabs";
 import { ConversationTabs } from "@/components/workspace/conversation-tabs";
-import { ChatPanel } from "@/components/chat/chat-panel";
+import { ChatPanel, type ChatPhaseActionConfig } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
 import { WindowHeader } from "@/components/layout/window-header";
+import type { RequirementsPhaseWorkflow } from "@/lib/workspace/requirements-phase";
 import type {
   ConversationSummary,
   Phase,
@@ -26,12 +27,33 @@ interface ProjectData {
   phase: Phase;
   gates: { id: string; phase: string; status: string; checklist: string }[];
   documents: ProjectDocument[];
+  phaseWorkflow: RequirementsPhaseWorkflow | null;
 }
 
 interface PendingStarter {
   conversationId: string;
   prompt: string;
   key: string;
+}
+
+const REQUIREMENTS_QA_STARTER_PROMPT =
+  "请从 QA 角度审查当前需求，重点补齐边界场景、异常流程、验收标准，以及最需要现在确认的风险和开放问题。";
+
+function getDefaultRoleForPhase(
+  phase: Phase,
+  project: Pick<ProjectData, "phase" | "phaseWorkflow"> | null
+): AgentRole {
+  if (
+    phase === "requirements" &&
+    project?.phase === "requirements" &&
+    project.phaseWorkflow?.phase === "requirements" &&
+    project.phaseWorkflow.pmStepCompleted
+  ) {
+    return "qa";
+  }
+
+  const phaseInfo = PHASES.find((item) => item.id === phase);
+  return phaseInfo?.roles[0] ?? "pm";
 }
 
 export default function ProjectWorkspace({
@@ -68,10 +90,7 @@ export default function ProjectWorkspace({
       setProject(data);
       if (loading) {
         setCurrentPhase(data.phase);
-        const phaseInfo = PHASES.find((p) => p.id === data.phase);
-        if (phaseInfo && phaseInfo.roles.length > 0) {
-          setActiveRole(phaseInfo.roles[0]);
-        }
+        setActiveRole(getDefaultRoleForPhase(data.phase, data));
       }
     } finally {
       setLoading(false);
@@ -201,10 +220,7 @@ export default function ProjectWorkspace({
 
   const handlePhaseSelect = (phase: Phase) => {
     setCurrentPhase(phase);
-    const phaseInfo = PHASES.find((p) => p.id === phase);
-    if (phaseInfo && phaseInfo.roles.length > 0) {
-      setActiveRole(phaseInfo.roles[0]);
-    }
+    setActiveRole(getDefaultRoleForPhase(phase, project));
   };
 
   const handleApprovePhase = async () => {
@@ -239,10 +255,7 @@ export default function ProjectWorkspace({
 
     await fetchProject();
     setCurrentPhase(next);
-    const phaseInfo = PHASES.find((p) => p.id === next);
-    if (phaseInfo && phaseInfo.roles.length > 0) {
-      setActiveRole(phaseInfo.roles[0]);
-    }
+    setActiveRole(getDefaultRoleForPhase(next, null));
   };
 
   const handleConversationSelect = useCallback(
@@ -296,6 +309,59 @@ export default function ProjectWorkspace({
     [currentPhase, handleCreateConversation]
   );
 
+  const handleOpenRequirementsQaReview = useCallback(
+    async (forceNewConversation: boolean) => {
+      if (forceNewConversation) {
+        await handleCreateConversation("qa", "requirements", {
+          prompt: REQUIREMENTS_QA_STARTER_PROMPT,
+        });
+        return;
+      }
+
+      const res = await fetch(
+        `/api/projects/${id}/conversations?role=qa&phase=requirements`
+      );
+      if (res.ok) {
+        const qaConversations = (await res.json()) as ConversationSummary[];
+        if (qaConversations[0]) {
+          setCurrentPhase("requirements");
+          setActiveRole("qa");
+          await loadConversation("qa", "requirements", qaConversations[0].id);
+          return;
+        }
+      }
+
+      setCurrentPhase("requirements");
+      setActiveRole("qa");
+      await handleCreateConversation("qa", "requirements", {
+        prompt: REQUIREMENTS_QA_STARTER_PROMPT,
+      });
+    },
+    [handleCreateConversation, id, loadConversation]
+  );
+
+  const handleCompleteRequirementsPm = useCallback(async () => {
+    if (!project) return;
+
+    const res = await fetch(`/api/projects/${id}/phase-gate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phase: "requirements",
+        action: "complete_requirements_pm",
+      }),
+    });
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      window.alert(payload?.error ?? "当前还不能进入 QA 评审");
+      return;
+    }
+
+    await fetchProject();
+    await handleOpenRequirementsQaReview(true);
+  }, [fetchProject, handleOpenRequirementsQaReview, id, project]);
+
   const approvedPhases = (project?.gates || [])
     .filter((g) => g.status === "approved")
     .map((g) => g.phase as Phase);
@@ -312,6 +378,74 @@ export default function ProjectWorkspace({
 
   const isCurrentPhaseApproved = approvedPhases.includes(currentPhase);
   const isCurrentProjectPhase = currentPhase === project.phase;
+  const requirementsWorkflow =
+    project.phaseWorkflow?.phase === "requirements" ? project.phaseWorkflow : null;
+  const disabledRoles =
+    isCurrentProjectPhase &&
+    currentPhase === "requirements" &&
+    requirementsWorkflow &&
+    !requirementsWorkflow.pmStepCompleted
+      ? {
+          qa: "请先完成产品经理收口，再进入 QA 评审。",
+        }
+      : undefined;
+
+  let phaseActionConfig: ChatPhaseActionConfig | null = null;
+
+  if (
+    isCurrentProjectPhase &&
+    currentPhase === "requirements" &&
+    requirementsWorkflow &&
+    !isCurrentPhaseApproved
+  ) {
+    if (!requirementsWorkflow.pmStepCompleted) {
+      phaseActionConfig =
+        activeRole === "pm"
+          ? {
+              stepLabel: "步骤 1/2 · PM 收口",
+              label: "进入 QA 评审",
+              message: requirementsWorkflow.canStartQa
+                ? "产品经理收口已达到门槛。下一步需要切到 QA 评审，补齐边界场景、验收标准和风险。"
+                : "当前仍处于需求定义的第 1 步。先让 PM 把 PRD、主流程和 MVP 边界收住，再进入 QA 评审。",
+              disabled: !requirementsWorkflow.canStartQa,
+              variant: requirementsWorkflow.canStartQa ? "default" : "outline",
+              onClick: handleCompleteRequirementsPm,
+            }
+          : {
+              stepLabel: "步骤 1/2 · PM 收口",
+              label: "请先完成 PM 收口",
+              message:
+                "QA 评审还未解锁。当前阶段必须先完成产品经理收口，再进入 QA 视角补充验证内容。",
+              disabled: true,
+              variant: "outline",
+              onClick: () => undefined,
+            };
+    } else {
+      phaseActionConfig =
+        activeRole === "qa"
+          ? {
+              stepLabel: requirementsWorkflow.canApprove
+                ? "步骤 2/2 · QA 可完成"
+                : "步骤 2/2 · QA 评审",
+              label: "确认完成",
+              message: requirementsWorkflow.canApprove
+                ? "QA 评审已补齐，可以完成需求定义阶段。"
+                : "当前处于需求定义的第 2 步。请先补齐边界场景、验收标准和风险/开放问题，再确认完成。",
+              disabled: !requirementsWorkflow.canApprove,
+              variant: requirementsWorkflow.canApprove ? "default" : "outline",
+              onClick: handleApprovePhase,
+            }
+          : {
+              stepLabel: "步骤 2/2 · QA 评审",
+              label: "继续 QA 评审",
+              message:
+                "产品经理收口已完成，但需求定义阶段还不能结束。请先进入 QA 评审，把验证标准和风险补齐。",
+              onClick: () => {
+                void handleOpenRequirementsQaReview(false);
+              },
+            };
+    }
+  }
 
   return (
     <div className="app-shell flex h-screen flex-col overflow-hidden">
@@ -359,6 +493,7 @@ export default function ProjectWorkspace({
             phase={currentPhase}
             activeRole={activeRole}
             onRoleSelect={setActiveRole}
+            disabledRoles={disabledRoles}
           />
           <ConversationTabs
             conversations={conversations}
@@ -406,6 +541,7 @@ export default function ProjectWorkspace({
                   );
                 }}
                 onOpenSuggestionConversation={handleOpenSuggestionConversation}
+                phaseActionConfig={phaseActionConfig}
               />
             ) : (
               <div className="flex h-full items-center justify-center">

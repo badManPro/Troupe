@@ -39,9 +39,15 @@ interface RoleTabsProps {
   phase: Phase;
   activeRole: AgentRole;
   onRoleSelect: (role: AgentRole) => void;
+  disabledRoles?: Partial<Record<AgentRole, string>>;
 }
 
-export function RoleTabs({ phase, activeRole, onRoleSelect }: RoleTabsProps) {
+export function RoleTabs({
+  phase,
+  activeRole,
+  onRoleSelect,
+  disabledRoles = {},
+}: RoleTabsProps) {
   const agents = getAgentsForPhase(phase);
 
   return (
@@ -50,12 +56,23 @@ export function RoleTabs({ phase, activeRole, onRoleSelect }: RoleTabsProps) {
       {agents.map((agent) => (
         <button
           key={agent.id}
-          onClick={() => onRoleSelect(agent.id)}
+          type="button"
+          onClick={() => {
+            if (disabledRoles[agent.id]) {
+              return;
+            }
+            onRoleSelect(agent.id);
+          }}
+          disabled={Boolean(disabledRoles[agent.id])}
+          title={disabledRoles[agent.id]}
           className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer",
+            "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all",
             activeRole === agent.id
               ? "bg-primary/10 text-primary font-medium ring-1 ring-primary/20"
-              : "hover:bg-muted text-muted-foreground"
+              : "text-muted-foreground",
+            disabledRoles[agent.id]
+              ? "cursor-not-allowed opacity-55"
+              : "cursor-pointer hover:bg-muted"
           )}
         >
           <Avatar className={cn("w-6 h-6", roleColors[agent.id])}>

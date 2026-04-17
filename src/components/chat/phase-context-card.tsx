@@ -103,6 +103,12 @@ interface PhaseContextCardProps {
   showPhaseActions?: boolean;
   isApproved?: boolean;
   canApprove?: boolean;
+  phaseStepLabel?: string;
+  phaseActionLabel?: string;
+  phaseActionDisabled?: boolean;
+  phaseActionMessage?: string;
+  phaseActionVariant?: "default" | "outline";
+  onPhasePrimaryAction?: () => void;
   onApprovePhase?: () => void;
   onAdvancePhase?: () => void;
 }
@@ -118,6 +124,12 @@ export function PhaseContextCard({
   showPhaseActions = false,
   isApproved = false,
   canApprove = false,
+  phaseStepLabel,
+  phaseActionLabel,
+  phaseActionDisabled,
+  phaseActionMessage,
+  phaseActionVariant,
+  onPhasePrimaryAction,
   onApprovePhase,
   onAdvancePhase,
 }: PhaseContextCardProps) {
@@ -137,7 +149,7 @@ export function PhaseContextCard({
   const nextPhaseName = nextPhase
     ? PHASES.find((item) => item.id === nextPhase)?.name ?? nextPhase
     : null;
-  const phaseActionMessage = isApproved
+  const defaultPhaseActionMessage = isApproved
     ? nextPhaseName
       ? `${phaseName} 已确认完成，可以进入 ${nextPhaseName}。`
       : `${phaseName} 已确认完成。`
@@ -146,6 +158,17 @@ export function PhaseContextCard({
       : phaseArtifacts.missingDocumentTypes.length > 0
         ? "当前阶段文档还没全部落地，先补齐缺失或沿用旧稿的产出。"
         : "当前还未满足进入下一步标准，先补齐未完成项和关键材料。";
+  const primaryActionLabel = phaseActionLabel ?? "确认完成";
+  const primaryActionDisabled =
+    phaseActionLabel != null ? Boolean(phaseActionDisabled) : !canApprove;
+  const primaryActionMessage = phaseActionMessage ?? defaultPhaseActionMessage;
+  const primaryActionVariant =
+    phaseActionVariant ?? (primaryActionDisabled ? "outline" : "default");
+  const primaryActionHandler = onPhasePrimaryAction ?? onApprovePhase;
+  const showArrowAction =
+    primaryActionLabel.includes("进入") ||
+    primaryActionLabel.includes("继续") ||
+    primaryActionLabel.includes("打开");
 
   useEffect(() => {
     setCollapsed(hasMessages);
@@ -173,6 +196,11 @@ export function PhaseContextCard({
             <Badge variant="secondary" className="rounded-full">
               {guide.roleLabel}
             </Badge>
+            {phaseStepLabel ? (
+              <Badge variant="outline" className="rounded-full">
+                {phaseStepLabel}
+              </Badge>
+            ) : null}
             <Badge
               variant="outline"
               className={cn("rounded-full text-[11px]", readiness.tone)}
@@ -196,13 +224,17 @@ export function PhaseContextCard({
                   <Button
                     type="button"
                     size="sm"
-                    variant={canApprove ? "default" : "outline"}
+                    variant={primaryActionVariant}
                     className="h-8 rounded-xl px-3"
-                    disabled={!canApprove}
-                    onClick={onApprovePhase}
+                    disabled={primaryActionDisabled}
+                    onClick={primaryActionHandler}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    确认完成
+                    {showArrowAction ? (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )}
+                    {primaryActionLabel}
                   </Button>
                 ) : nextPhaseName ? (
                   <Button
@@ -245,6 +277,11 @@ export function PhaseContextCard({
                     <Badge variant="secondary" className="rounded-full">
                       {guide.roleLabel}
                     </Badge>
+                    {phaseStepLabel ? (
+                      <Badge variant="outline" className="rounded-full">
+                        {phaseStepLabel}
+                      </Badge>
+                    ) : null}
                     <Badge
                       variant="outline"
                       className={cn("rounded-full text-[11px]", readiness.tone)}
@@ -383,7 +420,7 @@ export function PhaseContextCard({
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-foreground">阶段推进</div>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {phaseActionMessage}
+                        {primaryActionMessage}
                       </p>
                     </div>
 
@@ -392,11 +429,16 @@ export function PhaseContextCard({
                         <Button
                           type="button"
                           size="sm"
-                          disabled={!canApprove}
-                          onClick={onApprovePhase}
+                          variant={primaryActionVariant}
+                          disabled={primaryActionDisabled}
+                          onClick={primaryActionHandler}
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          确认完成
+                          {showArrowAction ? (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          {primaryActionLabel}
                         </Button>
                       ) : nextPhaseName ? (
                         <Button type="button" size="sm" onClick={onAdvancePhase}>

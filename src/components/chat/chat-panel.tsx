@@ -114,6 +114,15 @@ function getComposerPlaceholder(phase: Phase, role: AgentRole) {
   return "输入你的想法或回复...";
 }
 
+export interface ChatPhaseActionConfig {
+  stepLabel?: string;
+  label: string;
+  message: string;
+  disabled?: boolean;
+  variant?: "default" | "outline";
+  onClick: () => void;
+}
+
 interface ChatPanelProps {
   projectId: string;
   conversationId: string | null;
@@ -131,6 +140,7 @@ interface ChatPanelProps {
   autoStartKey?: string | null;
   onAutoStartConsumed?: (key: string) => void;
   onOpenSuggestionConversation?: (suggestion: ConversationSuggestion) => void;
+  phaseActionConfig?: ChatPhaseActionConfig | null;
 }
 
 export function ChatPanel({
@@ -150,6 +160,7 @@ export function ChatPanel({
   autoStartKey,
   onAutoStartConsumed,
   onOpenSuggestionConversation,
+  phaseActionConfig = null,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRootRef = useRef<HTMLDivElement>(null);
@@ -377,6 +388,12 @@ export function ChatPanel({
           showPhaseActions={showPhaseActions}
           isApproved={isPhaseApproved}
           canApprove={phaseProgress.readyToStop && phaseArtifacts.hasAllRequiredDocuments}
+          phaseStepLabel={phaseActionConfig?.stepLabel}
+          phaseActionLabel={phaseActionConfig?.label}
+          phaseActionDisabled={phaseActionConfig?.disabled}
+          phaseActionMessage={phaseActionConfig?.message}
+          phaseActionVariant={phaseActionConfig?.variant}
+          onPhasePrimaryAction={phaseActionConfig?.onClick}
           onApprovePhase={onApprovePhase}
           onAdvancePhase={onAdvancePhase}
         />
