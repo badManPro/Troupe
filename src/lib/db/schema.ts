@@ -20,6 +20,7 @@ export const conversations = sqliteTable("conversations", {
     .references(() => projects.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   phase: text("phase").notNull(),
+  title: text("title"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

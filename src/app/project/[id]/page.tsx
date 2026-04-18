@@ -10,6 +10,7 @@ import { ConversationTabs } from "@/components/workspace/conversation-tabs";
 import { ChatPanel, type ChatPhaseActionConfig } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
 import { WindowHeader } from "@/components/layout/window-header";
+import { applyConversationPromptTracking } from "@/lib/chat/conversation-label";
 import type { RequirementsPhaseWorkflow } from "@/lib/workspace/requirements-phase";
 import type {
   ConversationSummary,
@@ -34,19 +35,6 @@ interface PendingStarter {
   conversationId: string;
   prompt: string;
   key: string;
-}
-
-function buildConversationLabel(content: string) {
-  const normalized = content
-    .replace(/\s+/g, " ")
-    .replace(/[#>*`_-]/g, " ")
-    .trim();
-
-  if (!normalized) {
-    return "新对话";
-  }
-
-  return normalized.length > 16 ? `${normalized.slice(0, 16)}...` : normalized;
 }
 
 const REQUIREMENTS_QA_STARTER_PROMPT =
@@ -278,47 +266,56 @@ export default function ProjectWorkspace({
     [activeRole, currentPhase, loadConversation]
   );
 
+  const persistConversationTitle = useCallback(
+    async (targetConversationId: string, title: string) => {
+      await fetch(`/api/projects/${id}/conversations`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: targetConversationId,
+          title,
+        }),
+      }).catch(() => undefined);
+    },
+    [id]
+  );
+
   const trackConversationPrompt = useCallback(
-    (targetConversationId: string, prompt: string) => {
-      const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt) {
+    (
+      targetConversationId: string,
+      prompt: string,
+      title?: string | null
+    ) => {
+      if (!prompt.trim()) {
         return;
       }
 
+      if (title?.trim()) {
+        void persistConversationTitle(targetConversationId, title);
+      }
+
       setConversations((current) =>
-        current.map((conversation) => {
-          if (conversation.id !== targetConversationId) {
-            return conversation;
-          }
-
-          const alreadyCounted = Boolean(conversation.starterPrompt?.trim());
-
-          return {
-            ...conversation,
-            starterPrompt: trimmedPrompt,
-            label: buildConversationLabel(trimmedPrompt),
-            isEmpty: false,
-            messageCount: alreadyCounted
-              ? conversation.messageCount
-              : Math.max(1, conversation.messageCount),
-            lastMessageAt: new Date().toISOString(),
-          };
-        })
+        applyConversationPromptTracking(current, targetConversationId, prompt, title)
       );
     },
-    []
+    [persistConversationTitle]
   );
 
   const handleCreateConversation = useCallback(
     async (
       nextRole: AgentRole = activeRole,
       nextPhase: Phase = currentPhase,
-      starter?: { prompt: string }
+      starter?: { prompt: string; title?: string | null }
     ) => {
       const res = await fetch(`/api/projects/${id}/conversations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: nextRole, phase: nextPhase, forceNew: true }),
+        body: JSON.stringify({
+          role: nextRole,
+          phase: nextPhase,
+          forceNew: true,
+          title: starter?.title ?? null,
+        }),
       });
 
       if (!res.ok) {
@@ -341,23 +338,12 @@ export default function ProjectWorkspace({
     [activeRole, currentPhase, id, loadConversation]
   );
 
-  const handleOpenSuggestionConversation = useCallback(
-    async (suggestion: {
-      prompt: string;
-      role: AgentRole;
-    }) => {
-      await handleCreateConversation(suggestion.role, currentPhase, {
-        prompt: suggestion.prompt,
-      });
-    },
-    [currentPhase, handleCreateConversation]
-  );
-
   const handleOpenRequirementsQaReview = useCallback(
     async (forceNewConversation: boolean) => {
       if (forceNewConversation) {
         await handleCreateConversation("qa", "requirements", {
           prompt: REQUIREMENTS_QA_STARTER_PROMPT,
+          title: "QA 需求评审",
         });
         return;
       }
@@ -379,6 +365,7 @@ export default function ProjectWorkspace({
       setActiveRole("qa");
       await handleCreateConversation("qa", "requirements", {
         prompt: REQUIREMENTS_QA_STARTER_PROMPT,
+        title: "QA 需求评审",
       });
     },
     [handleCreateConversation, id, loadConversation]
@@ -543,7 +530,6 @@ export default function ProjectWorkspace({
             conversations={conversations}
             activeConversationId={conversationId}
             onSelect={handleConversationSelect}
-            onCreate={() => handleCreateConversation()}
           />
 
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -586,7 +572,6 @@ export default function ProjectWorkspace({
                     current?.key === key ? null : current
                   );
                 }}
-                onOpenSuggestionConversation={handleOpenSuggestionConversation}
                 phaseActionConfig={phaseActionConfig}
               />
             ) : (

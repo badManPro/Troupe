@@ -8,6 +8,13 @@
       "when": 1776224062547,
       "tag": "0000_motionless_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776522518415,
+      "tag": "0001_steady_freak",
+      "breakpoints": true
     }
   ]
 }

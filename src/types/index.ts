@@ -69,6 +69,7 @@ export interface ConversationSummary {
   role: AgentRole;
   phase: Phase;
   createdAt: string;
+  title?: string | null;
   label: string;
   messageCount: number;
   lastMessageAt: string | null;

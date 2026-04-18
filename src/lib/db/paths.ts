@@ -1,6 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import Database from "better-sqlite3";
 
 const APP_NAME = "Troupe";
 const DATABASE_FILENAME = "troupe.db";
@@ -81,6 +82,61 @@ function getLegacyDatabaseCandidates() {
   ].map((root) => path.join(root, DATABASE_FILENAME));
 }
 
+interface DatabaseSummary {
+  projectCount: number;
+  latestProjectUpdatedAt: number;
+}
+
+function getDatabaseSummary(targetPath: string): DatabaseSummary {
+  if (!pathExists(targetPath)) {
+    return { projectCount: 0, latestProjectUpdatedAt: 0 };
+  }
+
+  let db: Database.Database | null = null;
+
+  try {
+    db = new Database(targetPath, { readonly: true, fileMustExist: true });
+    const hasProjectsTable = db
+      .prepare(
+        `SELECT 1
+         FROM sqlite_master
+         WHERE type = 'table' AND name = 'projects'
+         LIMIT 1`
+      )
+      .get();
+
+    if (!hasProjectsTable) {
+      return { projectCount: 0, latestProjectUpdatedAt: 0 };
+    }
+
+    const result = db
+      .prepare(
+        `SELECT
+           COUNT(*) as count,
+           COALESCE(MAX(updated_at), 0) as latestUpdatedAt
+         FROM projects`
+      )
+      .get() as
+      | {
+          count?: number;
+          latestUpdatedAt?: number;
+        }
+      | undefined;
+
+    return {
+      projectCount: typeof result?.count === "number" ? result.count : 0,
+      latestProjectUpdatedAt:
+        typeof result?.latestUpdatedAt === "number"
+          ? result.latestUpdatedAt
+          : 0,
+    };
+  } catch {
+    return { projectCount: 0, latestProjectUpdatedAt: 0 };
+  } finally {
+    db?.close();
+  }
+}
+
 function getStableAppDataDir() {
   if (process.platform === "darwin") {
     return path.join(os.homedir(), "Library", "Application Support", APP_NAME);
@@ -99,6 +155,52 @@ function getStableAppDataDir() {
   );
 }
 
+export function pickPreferredDatabasePath(
+  legacyCandidates: string[],
+  stableDatabasePath: string
+) {
+  const stableSummary = getDatabaseSummary(stableDatabasePath);
+  let freshestLegacyPath: string | null = null;
+  let freshestLegacySummary: DatabaseSummary | null = null;
+
+  for (const legacyDatabasePath of legacyCandidates) {
+    const summary = getDatabaseSummary(legacyDatabasePath);
+
+    if (summary.projectCount === 0) {
+      continue;
+    }
+
+    if (
+      !freshestLegacySummary ||
+      summary.latestProjectUpdatedAt > freshestLegacySummary.latestProjectUpdatedAt
+    ) {
+      freshestLegacyPath = legacyDatabasePath;
+      freshestLegacySummary = summary;
+    }
+  }
+
+  if (
+    stableSummary.projectCount > 0 &&
+    (!freshestLegacySummary ||
+      stableSummary.latestProjectUpdatedAt >=
+        freshestLegacySummary.latestProjectUpdatedAt)
+  ) {
+    return stableDatabasePath;
+  }
+
+  if (freshestLegacyPath) {
+    return freshestLegacyPath;
+  }
+
+  for (const legacyDatabasePath of legacyCandidates) {
+    if (pathExists(legacyDatabasePath)) {
+      return legacyDatabasePath;
+    }
+  }
+
+  return stableDatabasePath;
+}
+
 export function resolveDatabasePath() {
   const configuredPath = process.env.DATABASE_PATH;
   if (configuredPath) {
@@ -106,15 +208,14 @@ export function resolveDatabasePath() {
     return configuredPath;
   }
 
-  for (const legacyDatabasePath of getLegacyDatabaseCandidates()) {
-    if (pathExists(legacyDatabasePath)) {
-      return legacyDatabasePath;
-    }
-  }
-
   const stableDataDir = getStableAppDataDir();
   fs.mkdirSync(stableDataDir, { recursive: true });
-  return path.join(stableDataDir, DATABASE_FILENAME);
+  const stableDatabasePath = path.join(stableDataDir, DATABASE_FILENAME);
+
+  return pickPreferredDatabasePath(
+    getLegacyDatabaseCandidates(),
+    stableDatabasePath
+  );
 }
 
 export function resolveMigrationsFolder() {

@@ -3,19 +3,7 @@ import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
 import { v4 as uuid } from "uuid";
 import { eq, and, desc, inArray } from "drizzle-orm";
-
-function buildConversationLabel(content: string) {
-  const normalized = content
-    .replace(/\s+/g, " ")
-    .replace(/[#>*`_-]/g, " ")
-    .trim();
-
-  if (!normalized) {
-    return "新对话";
-  }
-
-  return normalized.length > 16 ? `${normalized.slice(0, 16)}...` : normalized;
-}
+import { formatConversationTabLabel } from "@/lib/chat/conversation-label";
 
 export async function GET(
   req: NextRequest,
@@ -69,7 +57,11 @@ export async function GET(
 
       return {
         ...conversation,
-        label: buildConversationLabel(firstUserMessage?.content ?? ""),
+        title: conversation.title ?? null,
+        label: formatConversationTabLabel(
+          conversation.title ?? null,
+          firstUserMessage?.content ?? null
+        ),
         messageCount: conversationMessages.length,
         lastMessageAt: latestMessage?.createdAt ?? null,
         isEmpty: conversationMessages.length === 0,
@@ -118,9 +110,54 @@ export async function POST(
     projectId: id,
     role: body.role,
     phase: body.phase,
+    title: typeof body.title === "string" ? body.title.trim() || null : null,
   };
 
   db.insert(schema.conversations).values(conv).run();
 
   return NextResponse.json(conv, { status: 201 });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  ensureDb();
+  const { id } = await params;
+  const body = await req.json();
+  const conversationId = String(body.conversationId ?? "").trim();
+  const nextTitle =
+    typeof body.title === "string" ? body.title.trim() || null : null;
+
+  if (!conversationId) {
+    return NextResponse.json(
+      { error: "Missing conversationId" },
+      { status: 400 }
+    );
+  }
+
+  const existing = db
+    .select()
+    .from(schema.conversations)
+    .where(
+      and(
+        eq(schema.conversations.id, conversationId),
+        eq(schema.conversations.projectId, id)
+      )
+    )
+    .get();
+
+  if (!existing) {
+    return NextResponse.json(
+      { error: "Conversation not found" },
+      { status: 404 }
+    );
+  }
+
+  db.update(schema.conversations)
+    .set({ title: nextTitle })
+    .where(eq(schema.conversations.id, conversationId))
+    .run();
+
+  return NextResponse.json({ ...existing, title: nextTitle });
 }

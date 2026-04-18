@@ -1346,6 +1346,10 @@ export function getConversationSuggestions(
   const suggestions: ConversationSuggestion[] = [];
   const remainingActions = getRemainingQuickStartActions(messages, guide.actions);
   const phaseArtifacts = getPhaseArtifactSnapshot(phase, documents);
+  const currentConversationPrompts = messages
+    .filter((message) => message.role === "user")
+    .map((message) => getMessageText(message))
+    .filter((messageText) => messageText.trim().length > 0);
   const phaseConversationStarters = phaseConversations
     .map((conversation) => conversation.starterPrompt ?? "")
     .filter((starterPrompt) => starterPrompt.trim().length > 0);
@@ -1356,9 +1360,13 @@ export function getConversationSuggestions(
     }
 
     const documentPrompt = getDocumentConversationPrompt(document.type);
-    const alreadyStarted = phaseConversationStarters.some((starterPrompt) =>
-      matchesDocumentPrompt(starterPrompt, documentPrompt)
-    );
+    const alreadyStarted =
+      currentConversationPrompts.some((messageText) =>
+        matchesDocumentPrompt(messageText, documentPrompt)
+      ) ||
+      phaseConversationStarters.some((starterPrompt) =>
+        matchesDocumentPrompt(starterPrompt, documentPrompt)
+      );
     if (alreadyStarted) {
       continue;
     }
@@ -1381,9 +1389,13 @@ export function getConversationSuggestions(
   }
 
   for (const action of remainingActions) {
-    const alreadyStarted = phaseConversationStarters.some((starterPrompt) =>
-      matchesQuickStartAction(starterPrompt, action)
-    );
+    const alreadyStarted =
+      currentConversationPrompts.some((messageText) =>
+        matchesQuickStartAction(messageText, action)
+      ) ||
+      phaseConversationStarters.some((starterPrompt) =>
+        matchesQuickStartAction(starterPrompt, action)
+      );
     if (alreadyStarted) {
       continue;
     }

@@ -138,11 +138,14 @@ interface ChatPanelProps {
   onAdvancePhase?: () => void;
   initialMessages?: PersistedChatMessage[];
   onDocumentGenerated?: () => void;
-  onConversationPromptTracked?: (conversationId: string, prompt: string) => void;
+  onConversationPromptTracked?: (
+    conversationId: string,
+    prompt: string,
+    title?: string | null
+  ) => void;
   autoStartPrompt?: string | null;
   autoStartKey?: string | null;
   onAutoStartConsumed?: (key: string) => void;
-  onOpenSuggestionConversation?: (suggestion: ConversationSuggestion) => void;
   phaseActionConfig?: ChatPhaseActionConfig | null;
 }
 
@@ -164,7 +167,6 @@ export function ChatPanel({
   autoStartPrompt,
   autoStartKey,
   onAutoStartConsumed,
-  onOpenSuggestionConversation,
   phaseActionConfig = null,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -331,6 +333,30 @@ export function ChatPanel({
     stop();
   }, [isGenerating, stop]);
 
+  const handleSuggestionSelect = useCallback(
+    (suggestion: ConversationSuggestion) => {
+      if (isGenerating || !conversationId) {
+        return;
+      }
+
+      setPersistedError(null);
+      clearError();
+      onConversationPromptTracked?.(
+        conversationId,
+        suggestion.prompt,
+        suggestion.label
+      );
+      sendMessage({ text: suggestion.prompt });
+    },
+    [
+      clearError,
+      conversationId,
+      isGenerating,
+      onConversationPromptTracked,
+      sendMessage,
+    ]
+  );
+
   useEffect(() => {
     if (!autoStartPrompt || !autoStartKey || isGenerating || messages.length > 0) {
       return;
@@ -451,7 +477,7 @@ export function ChatPanel({
           suggestionTitle={composerSuggestionTitle}
           suggestions={conversationSuggestions}
           onSend={handleSend}
-          onSuggestionSelect={onOpenSuggestionConversation}
+          onSuggestionSelect={handleSuggestionSelect}
           onStop={handleStop}
         />
       </div>

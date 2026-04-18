@@ -73,3 +73,32 @@ test("getConversationSuggestions hides design quick starts that already exist in
     ["action-design-visual-style"]
   );
 });
+
+test("getConversationSuggestions hides document prompts already started in the current conversation", async () => {
+  const { getConversationSuggestions, getPhaseChatGuide } = await import(
+    new URL("./phase-chat-guidance.ts", import.meta.url).href
+  );
+
+  const guide = getPhaseChatGuide("design", "designer", {
+    hasExistingPrd: true,
+  });
+
+  const currentMessages = [
+    {
+      id: "user-1",
+      role: "user",
+      parts: [
+        {
+          type: "text",
+          text: "这轮请继续维护同一份设计阶段正式产出文档，而不是新开一套彼此独立的设计结论。\n\n请基于当前需求和用户流程，输出一版页面结构与线框说明，覆盖页面清单、布局分区、核心组件和关键交互。",
+        },
+      ],
+    },
+  ];
+
+  const suggestions = (
+    getConversationSuggestions as (...args: unknown[]) => Array<{ id: string }>
+  )("design", "designer", guide, currentMessages, [], []);
+
+  assert.ok(!suggestions.some((suggestion) => suggestion.id === "document-wireframe"));
+});

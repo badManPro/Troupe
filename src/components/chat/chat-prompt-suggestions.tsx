@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { MessageSquarePlus, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConversationSuggestion } from "@/lib/chat/phase-chat-guidance";
@@ -51,7 +51,7 @@ export const ChatPromptSuggestions = memo(function ChatPromptSuggestions({
             onClick={() => onSelect(action)}
           >
             <span className="flex items-start gap-2">
-              <MessageSquarePlus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="space-y-1 text-left">
                 <span className="block">{action.label}</span>
                 {action.description && (
