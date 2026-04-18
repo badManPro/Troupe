@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -15,10 +15,7 @@ export function MermaidDiagram({ chart, className }: MermaidDiagramProps) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const diagramId = useMemo(
-    () => `mermaid-${Math.random().toString(36).slice(2, 10)}`,
-    []
-  );
+  const diagramId = useId();
 
   useEffect(() => {
     let cancelled = false;

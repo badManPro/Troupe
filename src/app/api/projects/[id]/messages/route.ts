@@ -6,7 +6,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   ensureDb();
   const { searchParams } = new URL(req.url);
@@ -31,7 +31,7 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   ensureDb();
   const body = await req.json();
@@ -49,7 +49,7 @@ export async function POST(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   ensureDb();
   const body = await req.json();

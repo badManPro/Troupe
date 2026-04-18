@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
@@ -99,7 +99,6 @@ interface PhaseContextCardProps {
   phaseArtifacts: PhaseArtifactSnapshot;
   expandedMaxHeight?: number | null;
   hasMessages: boolean;
-  storageKey: string;
   showPhaseActions?: boolean;
   isApproved?: boolean;
   canApprove?: boolean;
@@ -120,7 +119,6 @@ export function PhaseContextCard({
   phaseArtifacts,
   expandedMaxHeight,
   hasMessages,
-  storageKey,
   showPhaseActions = false,
   isApproved = false,
   canApprove = false,
@@ -169,10 +167,6 @@ export function PhaseContextCard({
     primaryActionLabel.includes("进入") ||
     primaryActionLabel.includes("继续") ||
     primaryActionLabel.includes("打开");
-
-  useEffect(() => {
-    setCollapsed(hasMessages);
-  }, [hasMessages, storageKey]);
 
   const expandedCardStyle =
     !collapsed && expandedMaxHeight

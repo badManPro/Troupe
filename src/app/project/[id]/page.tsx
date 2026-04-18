@@ -212,11 +212,9 @@ export default function ProjectWorkspace({
   const projectLoaded = !loading && project != null;
   useEffect(() => {
     if (projectLoaded) {
-      loadConversation(activeRole, currentPhase);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- role/phase changes intentionally reload conversation state from persistence.
+      void loadConversation(activeRole, currentPhase);
     }
-    // projectLoaded only flips once from false→true on initial load.
-    // After that, role/phase changes are the only triggers we want.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRole, currentPhase, projectLoaded, loadConversation]);
 
   const handlePhaseSelect = (phase: Phase) => {

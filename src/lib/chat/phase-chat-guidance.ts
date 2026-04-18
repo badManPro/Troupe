@@ -1,7 +1,6 @@
 import { analyzeBrainstormProgress } from "@/lib/chat/brainstorm-progress";
 import {
   DOCUMENT_TYPE_LABELS,
-  DOCUMENT_TYPE_OWNER_ROLE,
 } from "@/lib/documents/catalog";
 import { getPhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
 import type {

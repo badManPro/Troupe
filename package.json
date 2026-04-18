@@ -8,7 +8,7 @@
     "tauri:dev": "node ./scripts/tauri-bootstrap.js dev",
     "tauri:build": "node ./scripts/tauri-bootstrap.js build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

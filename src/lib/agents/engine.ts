@@ -1,5 +1,5 @@
-import type { Phase, AgentRole, PhaseGateStatus } from "@/types";
-import { PHASE_ORDER, getPhaseIndex, getNextPhase, PHASES } from "@/types";
+import type { Phase, PhaseGateStatus } from "@/types";
+import { PHASE_ORDER, getPhaseIndex, PHASES } from "@/types";
 
 export interface PhaseGateCheck {
   phase: Phase;

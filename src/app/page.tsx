@@ -102,7 +102,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchProjects();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial client-side project fetch intentionally hydrates local state after mount.
+    void fetchProjects();
   }, [fetchProjects]);
 
   const handleCreate = async () => {

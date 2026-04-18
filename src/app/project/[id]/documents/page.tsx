@@ -7,14 +7,11 @@ import {
   FileText,
   Download,
   Save,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { WindowHeader } from "@/components/layout/window-header";
-import { MarkdownViewer } from "@/components/documents/markdown-viewer";
 import { DocumentEditor } from "@/components/documents/document-editor";
 import type { DocumentType } from "@/types";
 import { PHASES } from "@/types";
@@ -60,7 +57,8 @@ export default function DocumentsPage({
   }, [id, activeDoc]);
 
   useEffect(() => {
-    fetchDocuments();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- document data is fetched on route entry and saved into client state for editing.
+    void fetchDocuments();
   }, [fetchDocuments]);
 
   const handleSelectDoc = (doc: Document) => {

@@ -430,13 +430,13 @@ export function ChatPanel({
     <div ref={panelRef} className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30">
         <PhaseContextCard
+          key={`${phase}-${role}-${messages.length > 0 ? "with-messages" : "empty"}`}
           phase={phase}
           guide={phaseGuide}
           progress={phaseProgress}
           phaseArtifacts={phaseArtifacts}
           expandedMaxHeight={expandedCardMaxHeight}
           hasMessages={messages.length > 0}
-          storageKey={`${phase}-${role}`}
           showPhaseActions={showPhaseActions}
           isApproved={isPhaseApproved}
           canApprove={phaseProgress.readyToStop && phaseArtifacts.hasAllRequiredDocuments}
@@ -520,15 +520,6 @@ const ChatTranscript = memo(function ChatTranscript({
     !!lastMessage &&
     !getMessageText(lastMessage) &&
     !getMessageStatus(lastMessage);
-
-  useEffect(() => {
-    if (editingMessageId && !messages.some((message) => message.id === editingMessageId)) {
-      setEditingMessageId(null);
-      setEditingValue("");
-      setEditError(null);
-      setIsSubmittingEdit(false);
-    }
-  }, [editingMessageId, messages]);
 
   const startEdit = useCallback((messageId: string, text: string) => {
     setEditingMessageId(messageId);

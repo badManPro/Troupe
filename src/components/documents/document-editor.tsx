@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownViewer } from "./markdown-viewer";
@@ -34,12 +34,6 @@ export function DocumentEditor({
   tabsListClassName,
 }: DocumentEditorProps) {
   const [internalTab, setInternalTab] = useState<string>(defaultTab);
-
-  useEffect(() => {
-    if (tab === undefined) {
-      setInternalTab(defaultTab);
-    }
-  }, [defaultTab, tab]);
 
   const currentTab = tab ?? internalTab;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Eye, Loader2, Workflow } from "lucide-react";
 import {
   Dialog,
@@ -65,14 +65,15 @@ export function SectionDiagramPreviewButton({
     }
   };
 
-  useEffect(() => {
-    if (open && !loading && !mermaid && !error) {
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen && !loading && !mermaid && !error) {
       void generatePreview();
     }
-  }, [open, loading, mermaid, error]);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Button
         type="button"
         variant="outline"
