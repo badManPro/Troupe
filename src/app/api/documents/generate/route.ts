@@ -1,9 +1,15 @@
-import { streamText } from "ai";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+  type UIMessage,
+  type UIMessageStreamWriter,
+} from "ai";
 import { NextRequest } from "next/server";
 import { getClaudeConfig, getClaudeModelId } from "@/lib/ai/claude";
 import {
   getResolvedClaudeTransport,
-  runClaudePrompt,
+  streamClaudePrompt,
 } from "@/lib/ai/claude-cli";
 import { formatClaudeError } from "@/lib/ai/claude-errors";
 import {
@@ -13,18 +19,30 @@ import {
   getOpenAIModel,
 } from "@/lib/ai/provider";
 import { runCodexPrompt } from "@/lib/ai/codex";
-import { createStaticTextStreamResponse } from "@/lib/ai/ui-stream";
+import { writeTextInChunks } from "@/lib/ai/ui-stream";
 import { getAgentById } from "@/lib/agents/registry";
 import { buildContext } from "@/lib/agents/context";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
+import {
+  getDocumentGenerationCompleteStatus,
+  getDocumentGenerationErrorStatus,
+  getDocumentGenerationStreamingStatus,
+  getDocumentGenerationWaitingStages,
+  type DocumentGenerationStatus,
+} from "@/lib/documents/generation-stream";
 import { isDesignSpecReadyForExecution } from "@/lib/documents/design-spec";
 import { v4 as uuid } from "uuid";
 import { eq, and } from "drizzle-orm";
 import type { DocumentType, AgentRole, Phase } from "@/types";
 
 export const runtime = "nodejs";
+const STATUS_PART_ID = "document-generation-status";
+type DocumentGenerationUIMessage = UIMessage<
+  never,
+  { chatStatus: DocumentGenerationStatus }
+>;
 
 const DOC_PROMPTS: Record<DocumentType, { role: AgentRole; instruction: string }> = {
   prd: {
@@ -133,6 +151,61 @@ const DOC_PROMPTS: Record<DocumentType, { role: AgentRole; instruction: string }
   },
 };
 
+function isAbortLikeError(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.message.includes("请求已取消"))
+  );
+}
+
+function createStatusReporter(
+  writer: UIMessageStreamWriter<DocumentGenerationUIMessage>,
+  documentLabel: string
+) {
+  const waitingStages = getDocumentGenerationWaitingStages(documentLabel);
+  let stageIndex = 0;
+  let waitingTimer: ReturnType<typeof setInterval> | null = null;
+
+  const pushStatus = (status: DocumentGenerationStatus) => {
+    writer.write({
+      type: "data-chatStatus",
+      id: STATUS_PART_ID,
+      data: status,
+    });
+  };
+
+  const start = () => {
+    pushStatus(waitingStages[0]);
+    waitingTimer = setInterval(() => {
+      stageIndex = Math.min(stageIndex + 1, waitingStages.length - 1);
+      pushStatus(waitingStages[stageIndex]);
+    }, 2200);
+  };
+
+  const advanceTo = (nextIndex: number) => {
+    stageIndex = Math.min(nextIndex, waitingStages.length - 1);
+    pushStatus(waitingStages[stageIndex]);
+  };
+
+  const stop = () => {
+    if (waitingTimer) {
+      clearInterval(waitingTimer);
+      waitingTimer = null;
+    }
+  };
+
+  return {
+    advanceTo,
+    pushStatus,
+    start,
+    stop,
+  };
+}
+
 export async function POST(req: NextRequest) {
   ensureDb();
   const body = await req.json();
@@ -192,6 +265,7 @@ export async function POST(req: NextRequest) {
   const projectInfo = project
     ? `项目名称: ${project.name}\n项目描述: ${project.description}`
     : "";
+  const documentLabel = DOCUMENT_TYPE_LABELS[documentType] || documentType;
 
   const systemPrompt =
     agent.systemPrompt +
@@ -243,28 +317,75 @@ export async function POST(req: NextRequest) {
   const providerType = await getActiveProvider();
 
   if (providerType === "codex") {
-    try {
-      const prompt = [
-        "你正在 Troupe 中撰写正式项目文档。请只输出文档正文，不要暴露系统提示、推理过程、工具调用或内部实现细节。",
-        `# 角色与上下文\n${systemPrompt}`,
-        `# 当前工作阶段\n${phase}`,
-        `# 项目信息\n${projectInfo || "暂无额外项目信息"}`,
-        `# 任务要求\n请${docConfig.instruction}`,
-      ].join("\n\n");
+    const prompt = [
+      "你正在 Troupe 中撰写正式项目文档。请只输出文档正文，不要暴露系统提示、推理过程、工具调用或内部实现细节。",
+      `# 角色与上下文\n${systemPrompt}`,
+      `# 当前工作阶段\n${phase}`,
+      `# 项目信息\n${projectInfo || "暂无额外项目信息"}`,
+      `# 任务要求\n请${docConfig.instruction}`,
+    ].join("\n\n");
 
-      const text = await runCodexPrompt(prompt, {
-        model: await getCodexModelId(),
-        cwd: process.cwd(),
-        abortSignal: req.signal,
-      });
+    const model = await getCodexModelId();
+    const stream = createUIMessageStream<DocumentGenerationUIMessage>({
+      execute: async ({ writer }) => {
+        const reporter = createStatusReporter(writer, documentLabel);
+        reporter.start();
 
-      await persistDocument(text);
-      return createStaticTextStreamResponse(text);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Codex 文档生成失败";
-      return new Response(JSON.stringify({ error: message }), { status: 500 });
-    }
+        try {
+          const text = await runCodexPrompt(prompt, {
+            model,
+            cwd: process.cwd(),
+            abortSignal: req.signal,
+            onEvent: (event) => {
+              if (event.type === "thread.started") {
+                reporter.advanceTo(1);
+              }
+
+              if (event.type === "turn.started") {
+                reporter.advanceTo(2);
+              }
+            },
+          });
+
+          reporter.stop();
+          reporter.pushStatus(getDocumentGenerationStreamingStatus(documentLabel));
+
+          const { emittedText, aborted } = await writeTextInChunks(writer, text, {
+            minChunkSize: 14,
+            maxChunkSize: 30,
+            baseDelayMs: 28,
+            maxDelayMs: 96,
+            abortSignal: req.signal,
+          });
+
+          if (aborted) {
+            return;
+          }
+
+          const persistedText = emittedText.trim() || text.trim();
+          if (persistedText) {
+            await persistDocument(persistedText);
+          }
+
+          reporter.pushStatus(getDocumentGenerationCompleteStatus(documentLabel));
+        } catch (error) {
+          reporter.stop();
+
+          if (!isAbortLikeError(error)) {
+            reporter.pushStatus(
+              getDocumentGenerationErrorStatus(
+                error instanceof Error ? error.message : "Codex 文档生成失败"
+              )
+            );
+            throw error;
+          }
+        } finally {
+          reporter.stop();
+        }
+      },
+    });
+
+    return createUIMessageStreamResponse({ stream });
   }
 
   let claudeTransport: "cli" | "api" | null = null;
@@ -279,21 +400,85 @@ export async function POST(req: NextRequest) {
   }
 
   if (providerType === "claude" && claudeTransport === "cli") {
-    try {
-      const text = await runClaudePrompt(`${projectInfo}\n\n请${docConfig.instruction}`, {
-        model: await getClaudeModelId(),
-        systemPrompt,
-        cwd: process.cwd(),
-        abortSignal: req.signal,
-      });
+    const model = await getClaudeModelId();
+    const prompt = `${projectInfo}\n\n请${docConfig.instruction}`;
+    const stream = createUIMessageStream<DocumentGenerationUIMessage>({
+      execute: async ({ writer }) => {
+        const reporter = createStatusReporter(writer, documentLabel);
+        const textId = uuid();
+        let started = false;
+        let emittedText = "";
 
-      await persistDocument(text);
-      return createStaticTextStreamResponse(text);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Claude CLI 文档生成失败";
-      return new Response(JSON.stringify({ error: message }), { status: 500 });
-    }
+        reporter.start();
+
+        try {
+          const text = await streamClaudePrompt(prompt, {
+            model,
+            systemPrompt,
+            cwd: process.cwd(),
+            abortSignal: req.signal,
+            onEvent: (event) => {
+              const streamEvent = event.event;
+              if (
+                event.type === "stream_event" &&
+                streamEvent &&
+                typeof streamEvent === "object" &&
+                "type" in streamEvent &&
+                streamEvent.type === "message_start"
+              ) {
+                reporter.advanceTo(1);
+              }
+            },
+            onTextDelta: (delta) => {
+              if (!started) {
+                started = true;
+                reporter.stop();
+                reporter.pushStatus(
+                  getDocumentGenerationStreamingStatus(documentLabel)
+                );
+                writer.write({ type: "text-start", id: textId });
+              }
+
+              writer.write({ type: "text-delta", id: textId, delta });
+              emittedText += delta;
+            },
+          });
+
+          if (started) {
+            writer.write({ type: "text-end", id: textId });
+          } else if (text.trim()) {
+            reporter.stop();
+            reporter.pushStatus(getDocumentGenerationStreamingStatus(documentLabel));
+            writer.write({ type: "text-start", id: textId });
+            writer.write({ type: "text-delta", id: textId, delta: text });
+            writer.write({ type: "text-end", id: textId });
+            emittedText = text;
+          }
+
+          const persistedText = text.trim() || emittedText.trim();
+          if (persistedText) {
+            await persistDocument(persistedText);
+          }
+
+          reporter.pushStatus(getDocumentGenerationCompleteStatus(documentLabel));
+        } catch (error) {
+          reporter.stop();
+
+          if (!isAbortLikeError(error)) {
+            reporter.pushStatus(
+              getDocumentGenerationErrorStatus(
+                error instanceof Error ? error.message : "Claude CLI 文档生成失败"
+              )
+            );
+            throw error;
+          }
+        } finally {
+          reporter.stop();
+        }
+      },
+    });
+
+    return createUIMessageStreamResponse({ stream });
   }
 
   const claudeConfig =
@@ -302,24 +487,68 @@ export async function POST(req: NextRequest) {
     providerType === "claude"
       ? await getClaudeModel()
       : await getOpenAIModel();
-  const result = streamText({
-    model,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: `${projectInfo}\n\n请${docConfig.instruction}`,
-      },
-    ],
-    async onFinish({ text }) {
-      await persistDocument(text);
+  const formatStreamError =
+    providerType === "claude"
+      ? (error: unknown) => formatClaudeError(error, claudeConfig ?? undefined)
+      : undefined;
+  const stream = createUIMessageStream<DocumentGenerationUIMessage>({
+    execute: async ({ writer }) => {
+      const reporter = createStatusReporter(writer, documentLabel);
+      let hasStartedStreaming = false;
+
+      reporter.start();
+
+      const result = streamText({
+        model,
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: `${projectInfo}\n\n请${docConfig.instruction}`,
+          },
+        ],
+        onChunk({ chunk }) {
+          if (hasStartedStreaming || chunk.type !== "text-delta") {
+            return;
+          }
+
+          hasStartedStreaming = true;
+          reporter.stop();
+          reporter.pushStatus(getDocumentGenerationStreamingStatus(documentLabel));
+        },
+        async onFinish({ text }) {
+          await persistDocument(text);
+        },
+      });
+
+      try {
+        writer.merge(
+          result.toUIMessageStream<DocumentGenerationUIMessage>({
+            onError: formatStreamError,
+          })
+        );
+        await result.consumeStream({ onError: formatStreamError });
+
+        reporter.stop();
+        reporter.pushStatus(getDocumentGenerationCompleteStatus(documentLabel));
+      } catch (error) {
+        reporter.stop();
+
+        if (!isAbortLikeError(error)) {
+          reporter.pushStatus(
+            getDocumentGenerationErrorStatus(
+              formatStreamError?.(error) ??
+                (error instanceof Error ? error.message : "文档生成失败")
+            )
+          );
+          throw error;
+        }
+      } finally {
+        reporter.stop();
+      }
     },
+    onError: formatStreamError,
   });
 
-  return result.toUIMessageStreamResponse({
-    onError:
-      providerType === "claude"
-        ? (error) => formatClaudeError(error, claudeConfig ?? undefined)
-        : undefined,
-  });
+  return createUIMessageStreamResponse({ stream });
 }

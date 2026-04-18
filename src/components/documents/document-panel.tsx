@@ -30,12 +30,20 @@ import {
 } from "@/components/ui/tooltip";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import {
+  createDocumentGenerationState,
+  getDocumentGenerationWaitingStages,
+  parseDocumentGenerationSse,
+  reduceDocumentGenerationEvent,
+  type DocumentGenerationState,
+} from "@/lib/documents/generation-stream";
+import {
   getPhaseArtifactSnapshot,
   getLatestDocumentOfType,
   getPhaseRelevantDocuments,
 } from "@/lib/workspace/phase-artifacts";
 import { isDesignSpecReadyForExecution } from "@/lib/documents/design-spec";
 import { DocumentEditor } from "./document-editor";
+import { DocumentGenerationDialog } from "./document-generation-dialog";
 import type { DocumentType, Phase, ProjectDocument } from "@/types";
 import { PHASES } from "@/types";
 
@@ -56,7 +64,17 @@ export function DocumentPanel({
   const [editContent, setEditContent] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [saving, setSaving] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingDocType, setGeneratingDocType] = useState<DocumentType | null>(
+    null
+  );
+  const [generationDialogDocType, setGenerationDialogDocType] =
+    useState<DocumentType | null>(null);
+  const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
+  const [generationState, setGenerationState] = useState<DocumentGenerationState>(
+    createDocumentGenerationState()
+  );
+  const [pendingGeneratedDocType, setPendingGeneratedDocType] =
+    useState<DocumentType | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editorTab, setEditorTab] = useState<"preview" | "edit">("preview");
   const phaseArtifacts = useMemo(
@@ -82,6 +100,7 @@ export function DocumentPanel({
       isDesignSpecReadyForExecution(designSpec?.content ?? ""),
     [designSpec?.content, phase]
   );
+  const generating = generatingDocType !== null;
 
   useEffect(() => {
     const fallbackDoc = phaseDocs[0] ?? documents[0] ?? null;
@@ -135,7 +154,17 @@ export function DocumentPanel({
   };
 
   const handleGenerate = async (docType: DocumentType) => {
-    setGenerating(true);
+    const documentLabel = DOCUMENT_TYPE_LABELS[docType] || docType;
+    const initialStatus = getDocumentGenerationWaitingStages(documentLabel)[0] ?? null;
+
+    setGeneratingDocType(docType);
+    setGenerationDialogDocType(docType);
+    setGenerationDialogOpen(true);
+    setGenerationState({
+      ...createDocumentGenerationState(),
+      status: initialStatus,
+    });
+
     try {
       const res = await fetch("/api/documents/generate", {
         method: "POST",
@@ -148,33 +177,58 @@ export function DocumentPanel({
       });
 
       if (!res.ok || !res.body) {
-        throw new Error("Generation failed");
+        let message = "Generation failed";
+
+        try {
+          const payload = (await res.json()) as { error?: string };
+          message = payload.error || message;
+        } catch {
+          const text = await res.text().catch(() => "");
+          if (text.trim()) {
+            message = text.trim();
+          }
+        }
+
+        throw new Error(message);
       }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+        const parsed = parseDocumentGenerationSse(buffer);
+        buffer = parsed.remainder;
+
+        for (const event of parsed.events) {
+          setGenerationState((prev) => reduceDocumentGenerationEvent(prev, event));
+        }
+
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("0:")) {
-            try {
-              JSON.parse(line.slice(2));
-            } catch {
-              // skip non-JSON lines
-            }
-          }
+      }
+
+      if (buffer.trim()) {
+        const finalParsed = parseDocumentGenerationSse(`${buffer}\n\n`);
+        for (const event of finalParsed.events) {
+          setGenerationState((prev) => reduceDocumentGenerationEvent(prev, event));
         }
       }
 
+      setPendingGeneratedDocType(docType);
       onDocumentsChanged?.();
     } catch (err) {
       console.error("Document generation error:", err);
+      setGenerationState((prev) =>
+        reduceDocumentGenerationEvent(prev, {
+          type: "error",
+          errorText: err instanceof Error ? err.message : "Generation failed",
+        })
+      );
     } finally {
-      setGenerating(false);
+      setGeneratingDocType(null);
     }
   };
 
@@ -194,6 +248,18 @@ export function DocumentPanel({
     setEditorTab(tab);
     setDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (!pendingGeneratedDocType) return;
+
+    const generatedDoc = getLatestDocumentOfType(documents, pendingGeneratedDocType);
+    if (!generatedDoc) return;
+
+    setActiveDoc(generatedDoc);
+    setEditContent(generatedDoc.content);
+    setEditTitle(generatedDoc.title);
+    setPendingGeneratedDocType(null);
+  }, [documents, pendingGeneratedDocType]);
 
   const sidebarGenerationDocuments = phaseArtifacts.requiredDocuments.filter(
     (document) => document.type !== "prd" || document.state === "missing"
@@ -291,6 +357,14 @@ export function DocumentPanel({
   return (
     <TooltipProvider delayDuration={250}>
       <>
+        <DocumentGenerationDialog
+          open={generationDialogOpen}
+          docType={generationDialogDocType}
+          generationState={generationState}
+          isRunning={generating}
+          onOpenChange={setGenerationDialogOpen}
+        />
+
         <div className="flex h-full min-h-0 w-[23rem] min-w-[23rem] shrink-0 flex-col overflow-hidden border-l bg-card/40 backdrop-blur-sm">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="flex items-center gap-2">
@@ -424,12 +498,16 @@ export function DocumentPanel({
                           onClick={() => handleGenerate("design_mockup")}
                           disabled={generating || !canGenerateDesignMockup}
                         >
-                          {generating ? (
+                          {generatingDocType === "design_mockup" ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
                             <Sparkles className="w-3 h-3" />
                           )}
-                          {designMockup ? "重新生成设计稿" : "生成设计稿"}
+                          {generatingDocType === "design_mockup"
+                            ? "设计稿生成中"
+                            : designMockup
+                              ? "重新生成设计稿"
+                              : "生成设计稿"}
                         </Button>
                       </div>
                     )}
@@ -447,16 +525,18 @@ export function DocumentPanel({
                               onClick={() => handleGenerate(docType)}
                               disabled={generating}
                             >
-                              {generating ? (
+                              {generatingDocType === docType ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
                                 <Sparkles className="w-3 h-3" />
                               )}
-                              {document.state === "current"
-                                ? "重新生成"
-                                : document.state === "inherited"
-                                  ? "更新"
-                                  : "生成"}
+                              {generatingDocType === docType
+                                ? "生成中"
+                                : document.state === "current"
+                                  ? "重新生成"
+                                  : document.state === "inherited"
+                                    ? "更新"
+                                    : "生成"}
                               {DOCUMENT_TYPE_LABELS[docType]}
                             </Button>
                           );
