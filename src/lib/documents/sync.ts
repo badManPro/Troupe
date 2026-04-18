@@ -2,6 +2,15 @@ import { v4 as uuid } from "uuid";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
+import {
+  buildSharedDesignSpec,
+  extractMarkdownSection,
+  inferDesignConversationTrack,
+  isPlaceholderDesignSection,
+  isRelevantDesignTrackResponse,
+  normalizeDesignContribution,
+  type DesignConversationTrack,
+} from "@/lib/documents/design-spec";
 import type { AgentRole, DocumentType, Phase } from "@/types";
 
 interface DerivedDocumentMatch {
@@ -15,6 +24,12 @@ interface MessageCandidateInput {
   conversationRole: AgentRole;
   conversationPhase: Phase;
   content: string;
+}
+
+interface DesignTrackContribution {
+  track: DesignConversationTrack;
+  content: string;
+  updatedAt: Date;
 }
 
 const REQUIREMENTS_REVIEW_HEADING_PATTERN =
@@ -245,6 +260,85 @@ function detectDerivedDocuments({
   return matches;
 }
 
+function buildDesignAggregationDocuments(
+  projectId: string,
+  contributions: Partial<Record<DesignConversationTrack, DesignTrackContribution>>
+) {
+  const activeContributions = Object.values(contributions).filter(
+    (contribution): contribution is DesignTrackContribution => Boolean(contribution)
+  );
+
+  if (activeContributions.length === 0) {
+    return [];
+  }
+
+  const existingDesignSpec = db
+    .select()
+    .from(schema.documents)
+    .where(
+      and(
+        eq(schema.documents.projectId, projectId),
+        eq(schema.documents.type, "design_spec")
+      )
+    )
+    .get();
+
+  const designSpecContent = buildSharedDesignSpec({
+    existingContent: existingDesignSpec?.content ?? "",
+    userFlowContent: contributions.user_flow?.content,
+    informationArchitectureContent:
+      contributions.information_architecture?.content,
+    visualStyleContent: contributions.visual_style?.content,
+  });
+  const designSpecUpdatedAt = activeContributions.reduce((latest, contribution) =>
+    contribution.updatedAt > latest ? contribution.updatedAt : latest
+  , activeContributions[0].updatedAt);
+  const designSpecDocuments: Array<{
+    document: DerivedDocumentMatch;
+    updatedAt: Date;
+  }> = [
+    {
+      document: {
+        type: "design_spec",
+        title: DOCUMENT_TYPE_LABELS.design_spec,
+        content: designSpecContent,
+        phase: "design",
+      },
+      updatedAt: designSpecUpdatedAt,
+    },
+  ];
+
+  const userFlowSection = extractMarkdownSection(designSpecContent, "用户流程图");
+  if (!isPlaceholderDesignSection(userFlowSection)) {
+    designSpecDocuments.push({
+      document: {
+        type: "user_flow",
+        title: DOCUMENT_TYPE_LABELS.user_flow,
+        content: `# ${DOCUMENT_TYPE_LABELS.user_flow}\n\n${userFlowSection}`.trim(),
+        phase: "design",
+      },
+      updatedAt:
+        contributions.user_flow?.updatedAt ?? designSpecUpdatedAt,
+    });
+  }
+
+  const wireframeSection = extractMarkdownSection(designSpecContent, "页面清单");
+  if (!isPlaceholderDesignSection(wireframeSection)) {
+    designSpecDocuments.push({
+      document: {
+        type: "wireframe",
+        title: DOCUMENT_TYPE_LABELS.wireframe,
+        content: `# ${DOCUMENT_TYPE_LABELS.wireframe}\n\n${wireframeSection}`.trim(),
+        phase: "design",
+      },
+      updatedAt:
+        contributions.information_architecture?.updatedAt ?? designSpecUpdatedAt,
+    });
+  }
+
+  return designSpecDocuments;
+}
+
 function upsertDerivedDocument(
   projectId: string,
   derivedDocument: DerivedDocumentMatch,
@@ -309,19 +403,20 @@ export function syncDerivedDocuments(projectId: string) {
     .where(eq(schema.conversations.projectId, projectId))
     .orderBy(desc(schema.conversations.createdAt))
     .all();
+  const designTrackContributions: Partial<
+    Record<DesignConversationTrack, DesignTrackContribution>
+  > = {};
 
   for (const conversation of conversations) {
-    const assistantMessages = db
+    const conversationMessages = db
       .select()
       .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.conversationId, conversation.id),
-          eq(schema.messages.role, "assistant")
-        )
-      )
+      .where(eq(schema.messages.conversationId, conversation.id))
       .orderBy(desc(schema.messages.createdAt))
       .all();
+    const assistantMessages = conversationMessages.filter(
+      (message) => message.role === "assistant"
+    );
 
     for (const message of assistantMessages) {
       const derivedDocuments = detectDerivedDocuments({
@@ -338,5 +433,52 @@ export function syncDerivedDocuments(projectId: string) {
         upsertDerivedDocument(projectId, derivedDocument, message.createdAt);
       }
     }
+
+    if (
+      conversation.role === "designer" &&
+      conversation.phase === "design"
+    ) {
+      const firstUserPrompt =
+        conversationMessages
+          .filter((message) => message.role === "user")
+          .reverse()
+          .find((message) => message.content.trim())?.content ?? "";
+      const track = inferDesignConversationTrack(firstUserPrompt);
+
+      if (!track) {
+        continue;
+      }
+
+      const latestRelevantAssistant = assistantMessages.find((message) =>
+        isRelevantDesignTrackResponse(track, message.content)
+      );
+
+      if (!latestRelevantAssistant) {
+        continue;
+      }
+
+      const nextContribution = {
+        track,
+        content: normalizeDesignContribution(latestRelevantAssistant.content),
+        updatedAt: latestRelevantAssistant.createdAt,
+      };
+      const currentContribution = designTrackContributions[track];
+
+      if (
+        !currentContribution ||
+        currentContribution.updatedAt < nextContribution.updatedAt
+      ) {
+        designTrackContributions[track] = nextContribution;
+      }
+    }
+  }
+
+  const aggregatedDesignDocuments = buildDesignAggregationDocuments(
+    projectId,
+    designTrackContributions
+  );
+
+  for (const { document, updatedAt } of aggregatedDesignDocuments) {
+    upsertDerivedDocument(projectId, document, updatedAt);
   }
 }

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 test("syncDerivedDocuments extracts requirements review when QA uses alternate open-question headings", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "troupe-sync-"));
@@ -72,7 +72,12 @@ test("syncDerivedDocuments extracts requirements review when QA uses alternate o
     const document = db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.type, "requirements_review"))
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-1"),
+          eq(schema.documents.type, "requirements_review")
+        )
+      )
       .get();
 
     assert.ok(document);
@@ -166,22 +171,42 @@ test("syncDerivedDocuments persists shared design spec and design mockup outputs
     const designSpec = db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.type, "design_spec"))
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-2"),
+          eq(schema.documents.type, "design_spec")
+        )
+      )
       .get();
     const designMockup = db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.type, "design_mockup"))
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-2"),
+          eq(schema.documents.type, "design_mockup")
+        )
+      )
       .get();
     const userFlow = db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.type, "user_flow"))
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-2"),
+          eq(schema.documents.type, "user_flow")
+        )
+      )
       .get();
     const wireframe = db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.type, "wireframe"))
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-2"),
+          eq(schema.documents.type, "wireframe")
+        )
+      )
       .get();
 
     assert.ok(designSpec);
@@ -196,6 +221,189 @@ test("syncDerivedDocuments persists shared design spec and design mockup outputs
 
     assert.ok(wireframe);
     assert.match(wireframe.content, /页面清单/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    delete process.env.DATABASE_PATH;
+  }
+});
+
+test("syncDerivedDocuments assembles one design_spec from multiple focused design tabs", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "troupe-sync-design-tabs-"));
+  process.env.DATABASE_PATH = path.join(tempDir, "troupe.db");
+
+  try {
+    const { ensureDb } = await import(new URL("../db/init.ts", import.meta.url).href);
+    const { db, schema } = await import(new URL("../db/index.ts", import.meta.url).href);
+    const { syncDerivedDocuments } = await import(
+      new URL("./sync.ts", import.meta.url).href
+    );
+
+    ensureDb();
+
+    db.insert(schema.projects)
+      .values({
+        id: "project-3",
+        name: "AI 学习助手",
+        description: "设计分轨聚合回归测试",
+        phase: "design",
+        createdAt: new Date("2026-04-18T18:20:00+08:00"),
+        updatedAt: new Date("2026-04-18T18:20:00+08:00"),
+      })
+      .run();
+
+    db.insert(schema.conversations)
+      .values([
+        {
+          id: "conversation-3-flow",
+          projectId: "project-3",
+          role: "designer",
+          phase: "design",
+          createdAt: new Date("2026-04-18T18:21:00+08:00"),
+        },
+        {
+          id: "conversation-3-ia",
+          projectId: "project-3",
+          role: "designer",
+          phase: "design",
+          createdAt: new Date("2026-04-18T18:22:00+08:00"),
+        },
+        {
+          id: "conversation-3-style",
+          projectId: "project-3",
+          role: "designer",
+          phase: "design",
+          createdAt: new Date("2026-04-18T18:23:00+08:00"),
+        },
+      ])
+      .run();
+
+    db.insert(schema.messages)
+      .values([
+        {
+          id: "message-3-flow-user",
+          conversationId: "conversation-3-flow",
+          role: "user",
+          content:
+            "请先根据当前需求帮我梳理完整的用户流程，指出关键节点、分支和需要重点设计的页面。",
+          createdAt: new Date("2026-04-18T18:21:00+08:00"),
+        },
+        {
+          id: "message-3-flow-assistant",
+          conversationId: "conversation-3-flow",
+          role: "assistant",
+          content: `## 用户流程梳理
+
+### 首次启动流程
+- 用户先完成 Provider 配置，再进入画像收集与目标设定
+
+### 每日循环
+- 每日看板查看任务
+- 进入任务详情页执行步骤
+- 完成后回到看板刷新状态`,
+          createdAt: new Date("2026-04-18T18:21:30+08:00"),
+        },
+        {
+          id: "message-3-ia-user",
+          conversationId: "conversation-3-ia",
+          role: "user",
+          content:
+            "请从设计阶段的角度先拆页面清单、信息架构和导航层级，告诉我每个页面要承载什么内容。",
+          createdAt: new Date("2026-04-18T18:22:00+08:00"),
+        },
+        {
+          id: "message-3-ia-assistant",
+          conversationId: "conversation-3-ia",
+          role: "assistant",
+          content: `# 页面清单 · 信息架构 · 导航层级
+
+## 整体导航层级
+- Onboarding 线性漏斗
+- 核心工作区
+
+## 页面清单
+### 每日看板
+- 承载今日任务、连续打卡、桌宠反馈
+
+### 任务详情页
+- 承载步骤执行、代码块、检查项`,
+          createdAt: new Date("2026-04-18T18:22:30+08:00"),
+        },
+        {
+          id: "message-3-style-user",
+          conversationId: "conversation-3-style",
+          role: "user",
+          content:
+            "请在当前需求基础上给我一版视觉风格和交互方向建议，包括配色、字体、组件气质和关键交互动效。",
+          createdAt: new Date("2026-04-18T18:23:00+08:00"),
+        },
+        {
+          id: "message-3-style-assistant",
+          conversationId: "conversation-3-style",
+          role: "assistant",
+          content: `# 视觉风格与交互方向建议
+
+## 视觉基调
+- 深色底配高亮强调色，突出任务专注感
+
+## 配色与字体
+- 主色使用紫罗兰强调
+- 标题偏几何无衬线，正文保持高可读性
+
+## 关键交互动效
+- 任务切换使用轻微滑动过渡
+- 完成任务给予状态反馈`,
+          createdAt: new Date("2026-04-18T18:23:30+08:00"),
+        },
+      ])
+      .run();
+
+    syncDerivedDocuments("project-3");
+
+    const designSpec = db
+      .select()
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-3"),
+          eq(schema.documents.type, "design_spec")
+        )
+      )
+      .get();
+    const userFlow = db
+      .select()
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-3"),
+          eq(schema.documents.type, "user_flow")
+        )
+      )
+      .get();
+    const wireframe = db
+      .select()
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.projectId, "project-3"),
+          eq(schema.documents.type, "wireframe")
+        )
+      )
+      .get();
+
+    assert.ok(designSpec);
+    assert.match(designSpec.content, /# UI\/UX 设计方案/);
+    assert.match(designSpec.content, /## 用户流程图/);
+    assert.match(designSpec.content, /首次启动流程/);
+    assert.match(designSpec.content, /## 页面清单/);
+    assert.match(designSpec.content, /每日看板/);
+    assert.match(designSpec.content, /## 设计规范/);
+    assert.match(designSpec.content, /紫罗兰强调/);
+
+    assert.ok(userFlow);
+    assert.match(userFlow.content, /首次启动流程/);
+
+    assert.ok(wireframe);
+    assert.match(wireframe.content, /任务详情页/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
     delete process.env.DATABASE_PATH;

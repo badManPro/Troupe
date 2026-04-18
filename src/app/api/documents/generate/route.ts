@@ -19,6 +19,7 @@ import { buildContext } from "@/lib/agents/context";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
+import { isDesignSpecReadyForExecution } from "@/lib/documents/design-spec";
 import { v4 as uuid } from "uuid";
 import { eq, and } from "drizzle-orm";
 import type { DocumentType, AgentRole, Phase } from "@/types";
@@ -83,7 +84,7 @@ const DOC_PROMPTS: Record<DocumentType, { role: AgentRole; instruction: string }
   },
   design_mockup: {
     role: "designer",
-    instruction: `基于当前设计方案，整理一份设计稿说明。请概括：
+    instruction: `请仅以当前《设计方案》文档作为设计输入，不要直接引用某一个单独对话。基于当前设计方案，整理一份设计稿说明。请概括：
 1. 已完成的关键页面/画板
 2. 设计系统与视觉基调
 3. 当前设计稿覆盖范围
@@ -156,6 +157,31 @@ export async function POST(req: NextRequest) {
   }
 
   const contextDocs = await buildContext(projectId, phase);
+  const designSpec =
+    documentType === "design_mockup"
+      ? db
+          .select()
+          .from(schema.documents)
+          .where(
+            and(
+              eq(schema.documents.projectId, projectId),
+              eq(schema.documents.type, "design_spec")
+            )
+          )
+          .get()
+      : null;
+
+  if (
+    documentType === "design_mockup" &&
+    (!designSpec || !isDesignSpecReadyForExecution(designSpec.content))
+  ) {
+    return new Response(
+      JSON.stringify({
+        error: "当前设计方案还未补齐，暂时不能生成设计稿。",
+      }),
+      { status: 400 }
+    );
+  }
 
   const project = db
     .select()

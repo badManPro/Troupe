@@ -31,8 +31,10 @@ import {
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/catalog";
 import {
   getPhaseArtifactSnapshot,
+  getLatestDocumentOfType,
   getPhaseRelevantDocuments,
 } from "@/lib/workspace/phase-artifacts";
+import { isDesignSpecReadyForExecution } from "@/lib/documents/design-spec";
 import { DocumentEditor } from "./document-editor";
 import type { DocumentType, Phase, ProjectDocument } from "@/types";
 import { PHASES } from "@/types";
@@ -64,6 +66,21 @@ export function DocumentPanel({
   const phaseDocs = useMemo(
     () => getPhaseRelevantDocuments(phase, documents),
     [documents, phase]
+  );
+  const designSpec = useMemo(
+    () => getLatestDocumentOfType(documents, "design_spec"),
+    [documents]
+  );
+  const designMockup = useMemo(
+    () => getLatestDocumentOfType(documents, "design_mockup"),
+    [documents]
+  );
+  const canGenerateDesignMockup = useMemo(
+    () =>
+      phase === "design" &&
+      Boolean(designSpec?.content) &&
+      isDesignSpecReadyForExecution(designSpec?.content ?? ""),
+    [designSpec?.content, phase]
   );
 
   useEffect(() => {
@@ -372,6 +389,50 @@ export function DocumentPanel({
                     )}
 
                     {phaseDocs.map((doc) => renderDocumentCard(doc))}
+
+                    {phase === "design" && (
+                      <div className="rounded-[22px] border border-border/70 bg-background/85 p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-foreground">
+                              设计执行
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                              设计稿只会基于当前这份《设计方案》生成，不再直接参考某一个单独 tab。
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="rounded-full text-[10px]">
+                            设计阶段
+                          </Badge>
+                        </div>
+
+                        <div className="mt-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2">
+                          <div className="text-[13px] font-medium text-foreground">
+                            {designSpec ? "设计方案已接入" : "设计方案待建立"}
+                          </div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            {canGenerateDesignMockup
+                              ? "用户流程、页面结构和设计规范已具备，可以开始生成设计稿。"
+                              : "先让 3 条设计专题把《设计方案》补齐，再从这份文档统一生成设计稿。"}
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 h-8 w-full justify-start rounded-xl border-border/70 bg-background/80 text-xs shadow-sm"
+                          onClick={() => handleGenerate("design_mockup")}
+                          disabled={generating || !canGenerateDesignMockup}
+                        >
+                          {generating ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3 h-3" />
+                          )}
+                          {designMockup ? "重新生成设计稿" : "生成设计稿"}
+                        </Button>
+                      </div>
+                    )}
 
                     {sidebarGenerationDocuments.length > 0 && (
                       <div className="space-y-1.5 pt-2">
