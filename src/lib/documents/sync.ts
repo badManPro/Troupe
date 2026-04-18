@@ -17,6 +17,15 @@ interface MessageCandidateInput {
   content: string;
 }
 
+const REQUIREMENTS_REVIEW_HEADING_PATTERN =
+  /(^|\n)#\s*(?:qa\s*(?:需求)?(?:审查|评审)(?:结论)?|需求\s*qa\s*评审|需求评审)/i;
+
+const REQUIREMENTS_REVIEW_CORE_SECTION_PATTERN =
+  /##\s*(?:最优先补齐的缺口|最需要优先补齐的缺口|关键缺口|重点缺口|关键待补齐项|(?:关键|重点|主要)?边界场景(?:与异常流程)?|(?:关键|重点|主要)?异常流程|验收标准(?:草案|建议)?)/i;
+
+const REQUIREMENTS_REVIEW_RISK_OR_OPEN_QUESTION_SECTION_PATTERN =
+  /##\s*(?:当前(?:最高)?风险|核心风险|主要风险|风险(?:与开放问题)?|(?:最需要(?:现在)?确认|还需要(?:PM|产品)?确认|仍需确认|待确认|待定|决策|需(?:PM|产品)?确认|需要(?:PM|产品)?确认)(?:的)?(?:开放)?问题|开放问题|待确认问题|待定问题|决策问题)/i;
+
 function extractDocumentFromHeading(content: string, headingPattern: RegExp) {
   const match = headingPattern.exec(content);
   if (!match || typeof match.index !== "number") {
@@ -161,16 +170,14 @@ function detectDerivedDocuments({
 
   const requirementsReviewContent = extractDocumentFromHeading(
     content,
-    /(^|\n)#\s*(?:qa\s*(?:需求)?(?:审查|评审)(?:结论)?|需求\s*qa\s*评审|需求评审)/i
+    REQUIREMENTS_REVIEW_HEADING_PATTERN
   );
   if (
     conversationRole === "qa" &&
     conversationPhase === "requirements" &&
     requirementsReviewContent &&
-    /##\s*(?:最优先补齐的缺口|边界场景(?:与异常流程)?|验收标准(?:草案)?)/i.test(
-      requirementsReviewContent
-    ) &&
-    /##\s*(?:当前最高风险|最需要现在确认的开放问题|风险(?:与开放问题)?)/i.test(
+    REQUIREMENTS_REVIEW_CORE_SECTION_PATTERN.test(requirementsReviewContent) &&
+    REQUIREMENTS_REVIEW_RISK_OR_OPEN_QUESTION_SECTION_PATTERN.test(
       requirementsReviewContent
     )
   ) {

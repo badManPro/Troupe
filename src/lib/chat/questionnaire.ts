@@ -2,6 +2,7 @@ import type { ChatQuestion, ChatQuestionnaire } from "@/types/chat";
 
 const GROUP_HINT_RE = /(问题|回答|回复|选择|确认)/;
 const STRUCTURAL_BREAK_RE = /^(?:#{1,6}\s+\S.*|(?:-{3,}|\*{3,}|_{3,}))$/;
+const NUMBERED_ITEM_RE = /^(?:(\*\*|__))?(\d+)\.\s+(.+?)(?:\1)?$/;
 const FOLLOW_UP_LEAD_RE =
   /^(?:如果你愿意|如果可以|你如果愿意|你只要|只要先回答|只要回答|回答完|答完|如果确认|如果没问题|接下来|下一步|下一条|我下一条可以|下一条我可以|我可以直接|我可以继续|如果你希望|如果需要)/;
 const SHORT_SECTION_HEADING_RE =
@@ -45,14 +46,14 @@ function isStandaloneHeading(line: string, normalizedLine: string) {
 }
 
 function parseNumberedItems(text: string) {
-  const matches = [...text.matchAll(/^(\d+)\.\s+(.+)$/gm)];
+  const matches = [...text.matchAll(new RegExp(NUMBERED_ITEM_RE.source, "gm"))];
 
   return matches.map((match, index) => {
     const start = match.index ?? 0;
     const end = matches[index + 1]?.index ?? text.length;
 
     return {
-      number: Number(match[1]),
+      number: Number(match[2]),
       start,
       block: text.slice(start, end).trim(),
     } satisfies RawListItem;
@@ -104,7 +105,7 @@ function scoreGroup(text: string, group: RawListItem[]) {
 
 function buildQuestion(item: RawListItem, index: number): ChatQuestion | null {
   const lines = item.block.split("\n");
-  const firstLine = lines[0]?.replace(/^\d+\.\s*/, "").trim();
+  const firstLine = lines[0]?.match(NUMBERED_ITEM_RE)?.[3]?.trim();
 
   if (!firstLine) return null;
 

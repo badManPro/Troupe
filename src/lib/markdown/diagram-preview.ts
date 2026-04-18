@@ -8,11 +8,13 @@ export interface MarkdownDiagramSection {
   previewEligible: boolean;
 }
 
-const FLOW_TITLE_PATTERN =
-  /(业务流程|用户流程|核心流程|流程图|流程|操作步骤|执行步骤|使用步骤|页面跳转|关键交互|时序图|时序|数据流|工作流|用户路径|核心路径|用户旅程|旅程|闭环)/i;
+const EXPLICIT_FLOW_TITLE_PATTERN =
+  /(业务流程图?|用户流程图?|核心流程图?|流程图|操作步骤|执行步骤|使用步骤|页面跳转|关键交互|时序图?|数据流|工作流|用户路径|核心路径|用户旅程|旅程|闭环)/i;
 
-const ACTION_PATTERN =
-  /(用户|系统|AI|应用|页面|桌宠|进入|打开|点击|创建|选择|生成|展示|提示|提醒|反馈|更新|切换|完成|提交|返回|同步|触发)/i;
+const GENERIC_FLOW_TITLE_PATTERN = /流程/i;
+
+const STEP_LINE_PATTERN =
+  /^\s*(?:[-*]|\d+\.)\s*(?:(?:用户|系统|AI|应用|页面|桌宠|后台|服务端|客户端)\s*)?(?:进入|打开|点击|创建|选择|输入(?!的)|确认|提交|跳转|展示|生成|返回(?!的|格式)|同步|触发|完成(?!了|后)|关闭|加载|刷新|安装|登录|退出|校验|保存|发送|拉取|推送)/i;
 
 const MARKDOWN_HEADING_PATTERN = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 const NESTED_HEADING_PATTERN = /^\s{0,3}#{1,6}\s+/m;
@@ -26,20 +28,37 @@ function normalizeHeadingTitle(rawTitle: string) {
 }
 
 function isDiagramPreviewCandidate(title: string, content: string) {
-  const orderedItems = content.match(/^\s*\d+\.\s+/gm)?.length ?? 0;
-  const arrowLinks = content.match(/->|=>|→|<-|←/g)?.length ?? 0;
-  const titleLooksSequential = FLOW_TITLE_PATTERN.test(title);
-  const orderedStepLines = content
-    .split(/\r?\n/)
-    .filter((line) => /^\s*\d+\.\s+/.test(line) && ACTION_PATTERN.test(line))
+  const lines = content.split(/\r?\n/);
+  const titleLooksExplicit = EXPLICIT_FLOW_TITLE_PATTERN.test(title);
+  const titleLooksGeneric = GENERIC_FLOW_TITLE_PATTERN.test(title);
+  const stepLikeLines = lines.filter((line) => STEP_LINE_PATTERN.test(line)).length;
+  const orderedStepLines = lines
+    .filter((line) => /^\s*\d+\.\s+/.test(line) && STEP_LINE_PATTERN.test(line))
     .length;
+  const arrowStepLines = lines
+    .filter((line) => /->|=>|→|<-|←/.test(line) && STEP_LINE_PATTERN.test(line))
+    .length;
+  const strongSequentialSignals =
+    orderedStepLines >= 2 || arrowStepLines >= 1;
 
-  if (titleLooksSequential && (orderedItems >= 2 || orderedStepLines >= 2 || arrowLinks >= 1)) {
+  if (titleLooksExplicit && (stepLikeLines >= 2 || strongSequentialSignals)) {
     return true;
   }
 
-  if (orderedStepLines >= 4) return true;
-  if (arrowLinks >= 2) return true;
+  if (
+    titleLooksGeneric &&
+    (orderedStepLines >= 2 || arrowStepLines >= 2 || stepLikeLines >= 3)
+  ) {
+    return true;
+  }
+
+  if (orderedStepLines >= 4) {
+    return true;
+  }
+
+  if (stepLikeLines >= 3 && arrowStepLines >= 2) {
+    return true;
+  }
 
   return false;
 }
