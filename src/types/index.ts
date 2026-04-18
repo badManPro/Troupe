@@ -19,7 +19,9 @@ export type DocumentType =
   | "prd"
   | "requirements_review"
   | "user_flow"
+  | "design_spec"
   | "wireframe"
+  | "design_mockup"
   | "architecture"
   | "api_spec"
   | "db_schema"
@@ -71,6 +73,7 @@ export interface ConversationSummary {
   messageCount: number;
   lastMessageAt: string | null;
   isEmpty: boolean;
+  starterPrompt?: string | null;
 }
 
 export const PHASES: PhaseInfo[] = [

@@ -92,6 +92,13 @@ function detectDerivedDocuments({
     /##\s*用户流程图/.test(designContent) &&
     /##\s*页面清单/.test(designContent)
   ) {
+    matches.push({
+      type: "design_spec",
+      title: DOCUMENT_TYPE_LABELS.design_spec,
+      content: designContent,
+      phase: conversationPhase,
+    });
+
     const userFlowSection = extractSection(
       designContent,
       /##\s*用户流程图/i,
@@ -120,6 +127,20 @@ function detectDerivedDocuments({
         phase: conversationPhase,
       });
     }
+  }
+
+  if (
+    conversationRole === "designer" &&
+    conversationPhase === "design" &&
+    /##\s*设计产出总览/i.test(content) &&
+    /(四个核心页面|核心页面|Screen\s*\d+)/i.test(content)
+  ) {
+    matches.push({
+      type: "design_mockup",
+      title: DOCUMENT_TYPE_LABELS.design_mockup,
+      content: `# ${DOCUMENT_TYPE_LABELS.design_mockup}\n\n${content}`.trim(),
+      phase: conversationPhase,
+    });
   }
 
   const architectureContent = extractDocumentFromHeading(

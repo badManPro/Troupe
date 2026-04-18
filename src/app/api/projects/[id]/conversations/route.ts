@@ -73,6 +73,7 @@ export async function GET(
         messageCount: conversationMessages.length,
         lastMessageAt: latestMessage?.createdAt ?? null,
         isEmpty: conversationMessages.length === 0,
+        starterPrompt: firstUserMessage?.content ?? null,
       };
     })
     .sort((left, right) => {

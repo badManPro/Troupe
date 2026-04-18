@@ -65,6 +65,14 @@ const DOC_PROMPTS: Record<DocumentType, { role: AgentRole; instruction: string }
 2. 页面跳转关系
 3. 关键交互节点说明`,
   },
+  design_spec: {
+    role: "designer",
+    instruction: `基于当前需求、设计讨论和已有设计稿结论，生成一份完整的 UI/UX 设计方案。请至少包含：
+1. 设计理念
+2. 用户流程图
+3. 页面清单与信息架构
+4. 设计规范（配色、字体、组件气质、交互动效）`,
+  },
   wireframe: {
     role: "designer",
     instruction: `基于用户流程，用文字详细描述每个页面的线框图布局：
@@ -72,6 +80,14 @@ const DOC_PROMPTS: Record<DocumentType, { role: AgentRole; instruction: string }
 2. 核心组件位置和功能
 3. 交互说明
 4. 设计规范（配色、字体、间距建议）`,
+  },
+  design_mockup: {
+    role: "designer",
+    instruction: `基于当前设计方案，整理一份设计稿说明。请概括：
+1. 已完成的关键页面/画板
+2. 设计系统与视觉基调
+3. 当前设计稿覆盖范围
+4. 下一步还需要继续补的页面或组件`,
   },
   architecture: {
     role: "architect",

@@ -39,6 +39,7 @@ import {
 } from "@/lib/chat/phase-chat-guidance";
 import { getPhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
 import type { AgentRole, Phase, ProjectDocument } from "@/types";
+import type { ConversationSummary } from "@/types";
 import type {
   ChatStatusData,
   ChatUIMessage,
@@ -130,12 +131,14 @@ interface ChatPanelProps {
   phase: Phase;
   hasExistingPrd?: boolean;
   documents?: ProjectDocument[];
+  phaseConversations?: ConversationSummary[];
   showPhaseActions?: boolean;
   isPhaseApproved?: boolean;
   onApprovePhase?: () => void;
   onAdvancePhase?: () => void;
   initialMessages?: PersistedChatMessage[];
   onDocumentGenerated?: () => void;
+  onConversationPromptTracked?: (conversationId: string, prompt: string) => void;
   autoStartPrompt?: string | null;
   autoStartKey?: string | null;
   onAutoStartConsumed?: (key: string) => void;
@@ -150,12 +153,14 @@ export function ChatPanel({
   phase,
   hasExistingPrd = false,
   documents = [],
+  phaseConversations = [],
   showPhaseActions = false,
   isPhaseApproved = false,
   onApprovePhase,
   onAdvancePhase,
   initialMessages = [],
   onDocumentGenerated,
+  onConversationPromptTracked,
   autoStartPrompt,
   autoStartKey,
   onAutoStartConsumed,
@@ -270,8 +275,16 @@ export function ChatPanel({
     [documents, phase]
   );
   const conversationSuggestions = useMemo(
-    () => getConversationSuggestions(phase, role, phaseGuide, messages, documents),
-    [documents, messages, phase, phaseGuide, role]
+    () =>
+      getConversationSuggestions(
+        phase,
+        role,
+        phaseGuide,
+        messages,
+        documents,
+        phaseConversations
+      ),
+    [documents, messages, phase, phaseConversations, phaseGuide, role]
   );
   const composerPlaceholder = useMemo(
     () => getComposerPlaceholder(phase, role),
@@ -287,22 +300,30 @@ export function ChatPanel({
 
   const handleSend = useCallback(
     (message: string) => {
-      if (!message.trim() || isGenerating) return;
+      const nextMessage = message.trim();
+      if (!nextMessage || isGenerating) return;
       setPersistedError(null);
       clearError();
-      sendMessage({ text: message.trim() });
+      if (conversationId) {
+        onConversationPromptTracked?.(conversationId, nextMessage);
+      }
+      sendMessage({ text: nextMessage });
     },
-    [isGenerating, sendMessage, clearError]
+    [clearError, conversationId, isGenerating, onConversationPromptTracked, sendMessage]
   );
 
   const handleQuestionnaireSubmit = useCallback(
     (message: string) => {
-      if (isGenerating) return;
+      const nextMessage = message.trim();
+      if (!nextMessage || isGenerating) return;
       setPersistedError(null);
       clearError();
-      sendMessage({ text: message });
+      if (conversationId) {
+        onConversationPromptTracked?.(conversationId, nextMessage);
+      }
+      sendMessage({ text: nextMessage });
     },
-    [isGenerating, sendMessage, clearError]
+    [clearError, conversationId, isGenerating, onConversationPromptTracked, sendMessage]
   );
 
   const handleStop = useCallback(() => {
@@ -322,15 +343,20 @@ export function ChatPanel({
     autoStartRef.current = autoStartKey;
     setPersistedError(null);
     clearError();
+    if (conversationId) {
+      onConversationPromptTracked?.(conversationId, autoStartPrompt);
+    }
     sendMessage({ text: autoStartPrompt });
     onAutoStartConsumed?.(autoStartKey);
   }, [
     autoStartKey,
     autoStartPrompt,
     clearError,
+    conversationId,
     isGenerating,
     messages.length,
     onAutoStartConsumed,
+    onConversationPromptTracked,
     sendMessage,
   ]);
 

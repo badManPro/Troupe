@@ -6,6 +6,7 @@ import {
 import { getPhaseArtifactSnapshot } from "@/lib/workspace/phase-artifacts";
 import type {
   AgentRole,
+  ConversationSummary,
   DocumentType,
   Phase,
   ProjectDocument,
@@ -125,6 +126,84 @@ function matchesQuickStartAction(messageText: string, action: QuickStartAction) 
     .map(normalizeText)
     .filter(Boolean)
     .some((candidate) => normalizedMessage.includes(candidate));
+}
+
+function matchesDocumentPrompt(messageText: string, prompt: string) {
+  const normalizedMessage = normalizeText(messageText);
+  const normalizedPrompt = normalizeText(prompt);
+
+  return Boolean(
+    normalizedMessage && normalizedPrompt && normalizedMessage.includes(normalizedPrompt)
+  );
+}
+
+function buildDesignDocumentMaintenancePrompt(focus: string) {
+  return [
+    "这轮请继续维护同一份设计阶段正式产出文档，而不是新开一套彼此独立的设计结论。",
+    "请基于当前需求、已有设计文档和历史讨论，输出一份完整的 `# UI/UX 设计方案`。",
+    `本轮重点：${focus}`,
+    "输出时至少保留这几个章节：`## 设计理念`、`## 用户流程图`、`## 页面清单`、`## 设计规范`。",
+    "如果某个章节这轮没有新增内容，也请沿用当前已确认结论，整理成完整文档。",
+    "除非我明确要求开始出图或调用 Pencil / Pen，否则这一轮只更新文档，不要直接进入最终设计稿绘制。",
+  ].join("\n\n");
+}
+
+function buildSuggestionPrompt(
+  phase: Phase,
+  suggestion:
+    | { kind: "document"; type: DocumentType; originalPrompt: string }
+    | { kind: "action"; id: string; originalPrompt: string }
+) {
+  if (phase !== "design") {
+    return suggestion.originalPrompt;
+  }
+
+  if (suggestion.kind === "document") {
+    switch (suggestion.type) {
+      case "user_flow":
+        return [
+          buildDesignDocumentMaintenancePrompt(
+            "重点完善核心用户流程、关键分支、页面跳转关系和需要重点设计的页面。"
+          ),
+          `原始需求：${suggestion.originalPrompt}`,
+        ].join("\n\n");
+      case "wireframe":
+        return [
+          buildDesignDocumentMaintenancePrompt(
+            "重点完善页面清单、信息架构、布局分区、关键组件层级，以及交互与视觉规范。"
+          ),
+          `原始需求：${suggestion.originalPrompt}`,
+        ].join("\n\n");
+      default:
+        return suggestion.originalPrompt;
+    }
+  }
+
+  switch (suggestion.id) {
+    case "design-user-flow":
+      return [
+        buildDesignDocumentMaintenancePrompt(
+          "重点完善用户流程、关键节点、分支路径和页面跳转关系。"
+        ),
+        `原始需求：${suggestion.originalPrompt}`,
+      ].join("\n\n");
+    case "design-page-structure":
+      return [
+        buildDesignDocumentMaintenancePrompt(
+          "重点完善页面清单、导航层级、信息架构和页面承载内容。"
+        ),
+        `原始需求：${suggestion.originalPrompt}`,
+      ].join("\n\n");
+    case "design-visual-style":
+      return [
+        buildDesignDocumentMaintenancePrompt(
+          "重点完善视觉风格、组件气质、关键交互动效和设计系统规则。"
+        ),
+        `原始需求：${suggestion.originalPrompt}`,
+      ].join("\n\n");
+    default:
+      return suggestion.originalPrompt;
+  }
 }
 
 function buildChecklistMaterialStatusLabel(
@@ -1261,14 +1340,26 @@ export function getConversationSuggestions(
   role: AgentRole,
   guide: PhaseChatGuideConfig,
   messages: ChatUIMessage[],
-  documents: ProjectDocument[]
+  documents: ProjectDocument[],
+  phaseConversations: ConversationSummary[] = []
 ): ConversationSuggestion[] {
   const suggestions: ConversationSuggestion[] = [];
   const remainingActions = getRemainingQuickStartActions(messages, guide.actions);
   const phaseArtifacts = getPhaseArtifactSnapshot(phase, documents);
+  const phaseConversationStarters = phaseConversations
+    .map((conversation) => conversation.starterPrompt ?? "")
+    .filter((starterPrompt) => starterPrompt.trim().length > 0);
 
   for (const document of phaseArtifacts.requiredDocuments) {
     if (document.state === "current") {
+      continue;
+    }
+
+    const documentPrompt = getDocumentConversationPrompt(document.type);
+    const alreadyStarted = phaseConversationStarters.some((starterPrompt) =>
+      matchesDocumentPrompt(starterPrompt, documentPrompt)
+    );
+    if (alreadyStarted) {
       continue;
     }
 
@@ -1278,7 +1369,11 @@ export function getConversationSuggestions(
         document.state === "inherited"
           ? `更新${document.label}`
           : `产出${document.label}`,
-      prompt: getDocumentConversationPrompt(document.type),
+      prompt: buildSuggestionPrompt(phase, {
+        kind: "document",
+        type: document.type,
+        originalPrompt: documentPrompt,
+      }),
       role: document.ownerRole ?? role,
       description: document.hint,
       documentType: document.type,
@@ -1286,10 +1381,21 @@ export function getConversationSuggestions(
   }
 
   for (const action of remainingActions) {
+    const alreadyStarted = phaseConversationStarters.some((starterPrompt) =>
+      matchesQuickStartAction(starterPrompt, action)
+    );
+    if (alreadyStarted) {
+      continue;
+    }
+
     suggestions.push({
       id: `action-${action.id}`,
       label: action.label,
-      prompt: action.prompt,
+      prompt: buildSuggestionPrompt(phase, {
+        kind: "action",
+        id: action.id,
+        originalPrompt: action.prompt,
+      }),
       role,
     });
   }

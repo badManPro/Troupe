@@ -36,6 +36,19 @@ interface PendingStarter {
   key: string;
 }
 
+function buildConversationLabel(content: string) {
+  const normalized = content
+    .replace(/\s+/g, " ")
+    .replace(/[#>*`_-]/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return "新对话";
+  }
+
+  return normalized.length > 16 ? `${normalized.slice(0, 16)}...` : normalized;
+}
+
 const REQUIREMENTS_QA_STARTER_PROMPT =
   "请从 QA 角度审查当前需求，重点补齐边界场景、异常流程、验收标准，以及最需要现在确认的风险和开放问题。";
 
@@ -263,6 +276,37 @@ export default function ProjectWorkspace({
       loadConversation(activeRole, currentPhase, nextConversationId);
     },
     [activeRole, currentPhase, loadConversation]
+  );
+
+  const trackConversationPrompt = useCallback(
+    (targetConversationId: string, prompt: string) => {
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt) {
+        return;
+      }
+
+      setConversations((current) =>
+        current.map((conversation) => {
+          if (conversation.id !== targetConversationId) {
+            return conversation;
+          }
+
+          const alreadyCounted = Boolean(conversation.starterPrompt?.trim());
+
+          return {
+            ...conversation,
+            starterPrompt: trimmedPrompt,
+            label: buildConversationLabel(trimmedPrompt),
+            isEmpty: false,
+            messageCount: alreadyCounted
+              ? conversation.messageCount
+              : Math.max(1, conversation.messageCount),
+            lastMessageAt: new Date().toISOString(),
+          };
+        })
+      );
+    },
+    []
   );
 
   const handleCreateConversation = useCallback(
@@ -519,12 +563,14 @@ export default function ProjectWorkspace({
                 phase={currentPhase}
                 hasExistingPrd={project.documents.some((doc) => doc.type === "prd")}
                 documents={project.documents}
+                phaseConversations={conversations}
                 showPhaseActions={isCurrentProjectPhase}
                 isPhaseApproved={isCurrentPhaseApproved}
                 onApprovePhase={handleApprovePhase}
                 onAdvancePhase={handleAdvancePhase}
                 initialMessages={initialMessages}
                 onDocumentGenerated={handleDocumentGenerated}
+                onConversationPromptTracked={trackConversationPrompt}
                 autoStartPrompt={
                   pendingStarter?.conversationId === conversationId
                     ? pendingStarter.prompt

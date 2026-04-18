@@ -60,6 +60,6 @@ export const designerAgent: AgentConfig = {
 
 请用中文交流，注重可落地性。`,
   tools: ["create_user_flow", "design_wireframe"],
-  outputTemplates: ["user_flow", "wireframe"],
+  outputTemplates: ["user_flow", "design_spec", "wireframe", "design_mockup"],
   model: "gpt-4o",
 };
