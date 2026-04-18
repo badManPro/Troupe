@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Save,
+  Bot,
   CheckCircle2,
   AlertCircle,
   Key,
@@ -25,7 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { tagColors } from "@/lib/tag-colors";
 
-type AiProvider = "openai" | "codex";
+type AiProvider = "openai" | "claude" | "codex";
 
 interface CodexStatus {
   installed: boolean;
@@ -42,6 +43,17 @@ interface CodexModel {
   description: string;
 }
 
+interface ClaudeStatus {
+  configured: boolean;
+  configPath: string;
+  baseUrl: string | null;
+  normalizedBaseUrl: string | null;
+  hasAuthToken: boolean;
+  hasApiKey: boolean;
+  detectedModels: CodexModel[];
+  defaultModel: string;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
 
@@ -51,6 +63,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [connected, setConnected] = useState(false);
+
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
+  const [claudeModel, setClaudeModel] = useState("claude-sonnet-4-6");
 
   const [codexStatus, setCodexStatus] = useState<CodexStatus | null>(null);
   const [codexModel, setCodexModel] = useState("gpt-5.4");
@@ -71,10 +86,23 @@ export default function SettingsPage() {
       .catch(() => {});
   }, []);
 
+  const fetchClaudeStatus = useCallback(() => {
+    fetch("/api/claude/status")
+      .then((r) => r.json())
+      .then((d: ClaudeStatus) => {
+        setClaudeStatus(d);
+        setClaudeModel((current) =>
+          current === "claude-sonnet-4-6" ? d.defaultModel || current : current
+        );
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch("/api/settings?key=ai_provider")
       .then((r) => r.json())
       .then((d) => {
+        if (d.value === "claude") setActiveProvider("claude");
         if (d.value === "codex") setActiveProvider("codex");
       })
       .catch(() => {});
@@ -96,6 +124,13 @@ export default function SettingsPage() {
       })
       .catch(() => {});
 
+    fetch("/api/settings?key=claude_model")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.value) setClaudeModel(d.value);
+      })
+      .catch(() => {});
+
     fetch("/api/settings?key=codex_model")
       .then((r) => r.json())
       .then((d) => {
@@ -103,6 +138,7 @@ export default function SettingsPage() {
       })
       .catch(() => {});
 
+    fetchClaudeStatus();
     fetchCodexStatus();
 
     fetch("/api/codex/models")
@@ -115,7 +151,7 @@ export default function SettingsPage() {
     return () => {
       if (codexPollRef.current) clearInterval(codexPollRef.current);
     };
-  }, [fetchCodexStatus]);
+  }, [fetchClaudeStatus, fetchCodexStatus]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -139,6 +175,12 @@ export default function SettingsPage() {
           body: JSON.stringify({ key: "openai_model", value: model }),
         });
         setConnected(!!apiKey);
+      } else if (activeProvider === "claude") {
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "claude_model", value: claudeModel }),
+        });
       } else {
         await fetch("/api/settings", {
           method: "POST",
@@ -237,7 +279,7 @@ export default function SettingsPage() {
             <CardDescription>选择用于驱动 AI 角色的服务</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button
                 onClick={() => setActiveProvider("openai")}
                 className={`p-4 rounded-lg border text-left transition-all cursor-pointer ${
@@ -252,6 +294,22 @@ export default function SettingsPage() {
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   使用自己的 API Key
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveProvider("claude")}
+                className={`p-4 rounded-lg border text-left transition-all cursor-pointer ${
+                  activeProvider === "claude"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                    : "border-border hover:border-primary/30"
+                }`}
+              >
+                <div className="flex items-center gap-2 font-medium">
+                  <Bot className="w-4 h-4" />
+                  Claude 中转
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  复用本机 Claude 配置
                 </div>
               </button>
               <button
@@ -352,6 +410,106 @@ export default function SettingsPage() {
                   ))}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Claude Config */}
+        {activeProvider === "claude" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="w-5 h-5" />
+                Claude 中转配置
+              </CardTitle>
+              <CardDescription>
+                默认复用本机{" "}
+                <code className="font-mono text-xs">~/.claude/settings.json</code>{" "}
+                中的 <code className="font-mono text-xs">ANTHROPIC_BASE_URL</code>{" "}
+                和{" "}
+                <code className="font-mono text-xs">ANTHROPIC_AUTH_TOKEN</code>
+                ，适合当前这种中转站接入方式。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {claudeStatus?.configured ? (
+                  <Badge
+                    variant="secondary"
+                    className={tagColors.greenSurface}
+                  >
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    已检测到本机 Claude 配置
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className={tagColors.orangeSurface}
+                  >
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    未检测到可用 Claude 配置
+                  </Badge>
+                )}
+                {claudeStatus?.baseUrl && (
+                  <span className="text-xs text-muted-foreground break-all">
+                    Base URL: {claudeStatus.baseUrl}
+                  </span>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1 text-xs text-muted-foreground">
+                <p>配置文件：{claudeStatus?.configPath || "~/.claude/settings.json"}</p>
+                <p>
+                  鉴权方式：
+                  {claudeStatus?.hasAuthToken
+                    ? " Bearer Token"
+                    : claudeStatus?.hasApiKey
+                      ? " X-Api-Key"
+                      : " 未检测到"}
+                </p>
+                {claudeStatus?.normalizedBaseUrl &&
+                  claudeStatus.normalizedBaseUrl !== claudeStatus.baseUrl && (
+                    <p>实际请求前缀：{claudeStatus.normalizedBaseUrl}</p>
+                  )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">默认模型</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {(claudeStatus?.detectedModels?.length
+                    ? claudeStatus.detectedModels
+                    : [
+                        {
+                          slug: "claude-sonnet-4-6",
+                          displayName: "Claude Sonnet 4.6",
+                          description: "推荐用于主对话和文档生成",
+                        },
+                      ]
+                  ).map((m) => (
+                    <button
+                      key={m.slug}
+                      onClick={() => setClaudeModel(m.slug)}
+                      className={`p-3 rounded-lg border text-left text-sm transition-all cursor-pointer ${
+                        claudeModel === m.slug
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border hover:border-primary/30"
+                      }`}
+                    >
+                      <div className="font-medium">{m.displayName}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {m.description}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {!claudeStatus?.configured && (
+                <p className="text-xs text-muted-foreground">
+                  如果你刚切换了 ccswitch 配置，重新打开此页面即可重新读取本机
+                  Claude 中转设置。
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

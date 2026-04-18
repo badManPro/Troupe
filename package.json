@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "tauri:dev": "cargo tauri dev",
-    "tauri:build": "cargo tauri build",
+    "tauri:dev": "node ./scripts/tauri-bootstrap.js dev",
+    "tauri:build": "node ./scripts/tauri-bootstrap.js build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
@@ -26,6 +26,7 @@
   "homepage": "https://github.com/badManPro/Troupe#readme",
   "private": "true",
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.71",
     "@ai-sdk/openai": "^3.0.53",
     "@ai-sdk/react": "^3.0.163",
     "@radix-ui/react-avatar": "^1.1.11",

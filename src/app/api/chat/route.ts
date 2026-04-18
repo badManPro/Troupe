@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import {
   getActiveProvider,
+  getClaudeModel,
   getCodexModelId,
   getOpenAIModel,
 } from "@/lib/ai/provider";
@@ -285,7 +286,10 @@ export async function POST(req: NextRequest) {
     return createUIMessageStreamResponse({ stream });
   }
 
-  const model = await getOpenAIModel();
+  const model =
+    providerType === "claude"
+      ? await getClaudeModel()
+      : await getOpenAIModel();
   const result = streamText({
     model,
     system: systemPrompt,

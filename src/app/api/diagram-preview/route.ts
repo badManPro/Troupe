@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getActiveProvider,
+  getClaudeModel,
   getCodexModelId,
   getOpenAIModel,
 } from "@/lib/ai/provider";
@@ -57,7 +58,10 @@ async function generateMermaidDiagram(
     );
   }
 
-  const model = await getOpenAIModel();
+  const model =
+    providerType === "claude"
+      ? await getClaudeModel()
+      : await getOpenAIModel();
   const result = await generateText({
     model,
     system: DIAGRAM_SYSTEM_PROMPT,

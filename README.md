@@ -68,15 +68,17 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Tauri Desktop App (Optional)
 
-Requires Rust installed:
+Desktop mode now boots through the project script and will try to补齐 missing Rust/Tauri CLI dependencies before startup.
 
 ```bash
-# Install Tauri CLI
-npm install -D @tauri-apps/cli
-
 # Run as desktop app
-npx tauri dev
+npm run tauri:dev
 ```
+
+Notes:
+- macOS/Linux: if `cargo` is missing, the bootstrap script installs Rust via `rustup`
+- Windows: if `cargo` is missing, the bootstrap script tries `winget` first, then `Chocolatey`
+- If your OS prompts for additional native build tools, complete that installer once and rerun the same command
 
 ## Project Structure
 

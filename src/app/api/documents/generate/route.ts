@@ -2,6 +2,7 @@ import { streamText } from "ai";
 import { NextRequest } from "next/server";
 import {
   getActiveProvider,
+  getClaudeModel,
   getCodexModelId,
   getOpenAIModel,
 } from "@/lib/ai/provider";
@@ -218,7 +219,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const model = await getOpenAIModel();
+  const model =
+    providerType === "claude"
+      ? await getClaudeModel()
+      : await getOpenAIModel();
   const result = streamText({
     model,
     system: systemPrompt,
