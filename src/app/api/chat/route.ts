@@ -11,7 +11,13 @@ import {
   getCodexModelId,
   getOpenAIModel,
 } from "@/lib/ai/provider";
+import { getClaudeConfig, getClaudeModelId } from "@/lib/ai/claude";
+import {
+  getResolvedClaudeTransport,
+  streamClaudePrompt,
+} from "@/lib/ai/claude-cli";
 import { runCodexPrompt } from "@/lib/ai/codex";
+import { formatClaudeError } from "@/lib/ai/claude-errors";
 import { writeTextInChunks } from "@/lib/ai/ui-stream";
 import { getAgentById } from "@/lib/agents/registry";
 import { buildContext } from "@/lib/agents/context";
@@ -164,6 +170,19 @@ export async function POST(req: NextRequest) {
       : "");
 
   const providerType = await getActiveProvider();
+  let claudeTransport: "cli" | "api" | null = null;
+
+  if (providerType === "claude") {
+    try {
+      claudeTransport = await getResolvedClaudeTransport();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Claude 执行模式不可用";
+      return new Response(JSON.stringify({ error: message }), {
+        status: 500,
+      });
+    }
+  }
 
   if (providerType === "codex") {
     const prompt = [
@@ -286,6 +305,121 @@ export async function POST(req: NextRequest) {
     return createUIMessageStreamResponse({ stream });
   }
 
+  if (providerType === "claude" && claudeTransport === "cli") {
+    const prompt = [
+      phase ? `# 当前工作阶段\n${phase}` : null,
+      `# 对话历史\n${formatConversationForCodex(messages)}`,
+      "请基于最后一条用户消息继续自然回复。默认使用中文；如果关键信息缺失，可以先提出少量澄清问题。优先让回复便于阅读和快速扫描。",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const model = await getClaudeModelId();
+
+    const stream = createUIMessageStream<ChatUIMessage>({
+      originalMessages: messages as ChatUIMessage[],
+      execute: async ({ writer }) => {
+        const textId = uuid();
+        let started = false;
+        let emittedText = "";
+
+        const pushStatus = (status: ChatStatusData) => {
+          writer.write({
+            type: "data-chatStatus",
+            id: STATUS_PART_ID,
+            data: status,
+          });
+        };
+
+        pushStatus({
+          phase: "queued",
+          label: "消息已发送",
+          detail: "正在唤起 Claude CLI。",
+        });
+
+        try {
+          const text = await streamClaudePrompt(prompt, {
+            model,
+            systemPrompt,
+            cwd: process.cwd(),
+            abortSignal: req.signal,
+            onEvent: (event) => {
+              const streamEvent = event.event;
+              if (
+                event.type === "stream_event" &&
+                streamEvent &&
+                typeof streamEvent === "object" &&
+                "type" in streamEvent &&
+                streamEvent.type === "message_start"
+              ) {
+                pushStatus({
+                  phase: "thinking",
+                  label: "正在理解你的问题",
+                  detail: "Claude CLI 已接收请求。",
+                });
+              }
+            },
+            onTextDelta: (delta) => {
+              if (!started) {
+                writer.write({ type: "text-start", id: textId });
+                started = true;
+                pushStatus({
+                  phase: "streaming",
+                  label: "正在输出回复",
+                  detail: "内容会逐段出现在对话区。",
+                });
+              }
+
+              writer.write({ type: "text-delta", id: textId, delta });
+              emittedText += delta;
+            },
+          });
+
+          if (started) {
+            writer.write({ type: "text-end", id: textId });
+          } else if (text.trim()) {
+            writer.write({ type: "text-start", id: textId });
+            writer.write({ type: "text-delta", id: textId, delta: text });
+            writer.write({ type: "text-end", id: textId });
+            emittedText = text;
+          }
+
+          const persistedText = text.trim() || emittedText.trim();
+          if (conversationId && persistedText) {
+            db.insert(schema.messages)
+              .values({
+                id: uuid(),
+                conversationId,
+                role: "assistant",
+                content: persistedText,
+              })
+              .run();
+          }
+
+          pushStatus({
+            phase: "complete",
+            label: "回复完成",
+          });
+        } catch (error) {
+          if (!isAbortLikeError(error)) {
+            pushStatus({
+              phase: "error",
+              label: "回复失败",
+              detail:
+                error instanceof Error ? error.message : "Claude CLI 对话调用失败",
+            });
+            throw error;
+          }
+        }
+      },
+    });
+
+    return createUIMessageStreamResponse({ stream });
+  }
+
+  const claudeConfig =
+    providerType === "claude" ? await getClaudeConfig() : null;
+
   const model =
     providerType === "claude"
       ? await getClaudeModel()
@@ -313,5 +447,9 @@ export async function POST(req: NextRequest) {
 
   return result.toUIMessageStreamResponse({
     originalMessages: messages as ChatUIMessage[],
+    onError:
+      providerType === "claude"
+        ? (error) => formatClaudeError(error, claudeConfig ?? undefined)
+        : undefined,
   });
 }

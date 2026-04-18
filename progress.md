@@ -1,72 +1,88 @@
 # Progress Log
 
-## Session: 2026-04-17
+## Session: 2026-04-18
 
 ### Phase 1: Discovery
 - **Status:** complete
-- **Started:** 2026-04-17
+- **Started:** 2026-04-18
 - Actions taken:
-  - 检查了 QA 阶段指导文案、agent 提示词、文档类型目录、右侧文档面板和自动同步逻辑。
-  - 确认当前 requirements QA 输出不会被同步成文档，因此右侧刷新后仍无变化。
+  - 对照现有 `codex` bridge、`claude` provider 和设置页，确认 CLI bridge 的接入点。
+  - 验证本机 `claude` CLI 可用且已登录。
+  - 直接试跑 `json` / `stream-json` 两种输出格式，确认聊天和单次生成都能覆盖。
 - Files created/modified:
-  - `task_plan.md` (created)
-  - `findings.md` (created)
-  - `progress.md` (created)
+  - `task_plan.md` (rewritten)
+  - `findings.md` (rewritten)
+  - `progress.md` (rewritten)
 
 ### Phase 2: Planning
 - **Status:** complete
 - Actions taken:
-  - 确定新增独立的 requirements QA 文档类型，并保持 delivery 的 `test_plan` 不变。
+  - 决定保持 `claude` 作为单一 provider，并通过 `claude_execution_mode` 控制 CLI / API 选择。
+  - 确定先写纯 helper 测试，锁住 CLI JSON 解析和执行策略，再写实现。
 - Files created/modified:
-  - `task_plan.md` (updated)
-  - `findings.md` (updated)
-  - `progress.md` (updated)
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
 
 ### Phase 3: Implementation
 - **Status:** complete
 - Actions taken:
-  - 为共享 `DocumentType` 和文档标签增加 `requirements_review`。
-  - 重写 QA agent 的 phase-specific 输出模板，区分 requirements 评审结论与 delivery 测试方案。
-  - 更新聊天同步逻辑：requirements 阶段识别 `# QA 审查结论`，delivery 阶段才识别 `# 测试方案`。
-  - 把当前 `phase` 注入聊天和文档生成 prompt，降低 QA 阶段模板混用概率。
+  - 新增 `src/lib/ai/claude-cli-utils.ts`，封装执行模式解析、auth 输出解析和 `stream-json` 事件提取。
+  - 新增 `src/lib/ai/claude-cli.ts`，封装 Claude CLI 状态探测、单次执行和流式执行。
+  - 更新 `src/lib/ai/claude.ts`，把 CLI 状态、实际 transport 和 execution error 合并进 `/api/claude/status`。
+  - 更新 `chat` / `documents/generate` / `diagram-preview` 三个入口，在 `claude` provider 下优先走 CLI bridge。
+  - 更新设置页，新增 Claude 执行模式选择、CLI 状态展示和即时刷新。
 - Files created/modified:
-  - `src/types/index.ts`
-  - `src/lib/documents/catalog.ts`
-  - `src/lib/agents/roles/qa.ts`
-  - `src/lib/documents/sync.ts`
-  - `src/lib/chat/phase-chat-guidance.ts`
+  - `src/lib/ai/claude-cli-utils.ts`
+  - `src/lib/ai/claude-cli.ts`
+  - `src/lib/ai/claude.ts`
   - `src/app/api/chat/route.ts`
   - `src/app/api/documents/generate/route.ts`
-  - `src/app/project/[id]/documents/page.tsx`
+  - `src/app/api/diagram-preview/route.ts`
+  - `src/app/settings/page.tsx`
 
 ### Phase 4: Verification
 - **Status:** complete
 - Actions taken:
-  - 先用当前数据库中的 QA 审查记录做正则匹配验证，确认现有 `# QA 审查结论` 会命中新规则。
-  - 运行 `npm run build` 做生产构建验证；首次失败是因为沙箱网络拦截了 `next/font` 拉取 Google Fonts，提权后构建通过。
+  - 按 TDD 先跑 `src/lib/ai/claude-cli.test.ts` 红灯，再补 helper 绿灯。
+  - 运行 `node --test src/lib/ai/claude-cli.test.ts src/lib/ai/claude.test.ts`。
+  - 运行 `npx tsc --noEmit --pretty false`。
+  - 复核 `npm run lint` 失败仍是仓库现有脚本问题，不是本轮引入。
 - Files created/modified:
-  - `task_plan.md` (updated)
-  - `findings.md` (updated)
-  - `progress.md` (updated)
+  - `src/lib/ai/claude-cli.test.ts`
+  - `progress.md`
+
+### Phase 5: Delivery
+- **Status:** complete
+- Actions taken:
+  - 复查 `git status`，确认存在用户/既有改动的其他文件未被回滚。
+  - 整理 residual risk、验证结果和交付说明。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Discovery consistency check | 阅读阶段定义与同步逻辑 | 找到右侧不更新的单一根因链路 | 已确认是缺少 requirements QA 文档同步 | ✓ |
-| Requirements QA parser match | 当前库中的 `# QA 审查结论` 消息 | 命中新 `requirements_review` 识别条件 | `heading=true, sections=true, matches=true` | ✓ |
-| Production build | `npm run build` | 新文档类型与接口改动可通过编译 | 提权后构建成功，TypeScript 完成 | ✓ |
+| Claude CLI JSON smoke test | `claude -p --output-format json "reply with exactly the word pong"` | 返回 `result=pong` | 已通过 | ✓ |
+| Claude CLI stream-json smoke test | `claude -p --verbose --output-format stream-json --include-partial-messages ...` | 出现 `content_block_delta.text` | 已通过 | ✓ |
+| Claude CLI auth status | `claude auth status --json` | 已登录状态可解析 | 已通过 | ✓ |
+| Claude CLI helper tests | `node --test src/lib/ai/claude-cli.test.ts src/lib/ai/claude.test.ts` | 新旧 Claude helper 行为都通过 | 9 tests passed | ✓ |
+| Type check | `npx tsc --noEmit --pretty false` | 所有改动可通过 TypeScript 校验 | 已通过 | ✓ |
+| Repo lint | `npm run lint` | 若脚本正常，应完成 lint | 仍失败于 `next lint` 参数解析问题 | ! |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-| 2026-04-17 | `git status` 发现 `troupe.db-shm` 已修改 | 1 | 不触碰数据库运行态文件，继续代码改动 |
-| 2026-04-17 | `npm run build` 首次失败，`next/font` 无法获取 Google Fonts | 1 | 按要求提权重跑构建，验证代码本身无编译问题 |
+| 2026-04-18 | `claude -p` 普通 stdin 输入报 “Input must be provided...” | 1 | 先改用 prompt argument，不阻塞 bridge 实现 |
+| 2026-04-18 | `stream-json` 缺少 `--verbose` 时直接报错 | 1 | 聊天 bridge 固定附带 `--verbose` |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
 | Where am I? | Phase 5: Delivery |
 | Where am I going? | 无剩余实施步骤，准备交付变更说明 |
-| What's the goal? | 让 requirements QA 产物成为独立结构化文档并显示在右侧 |
-| What have I learned? | requirements QA 历史输出已经有可稳定识别的结构，可直接回填成文档 |
-| What have I done? | 已完成实现并通过构建与样本匹配验证 |
+| What's the goal? | 让 Troupe 的 Claude provider 支持官方 Claude CLI bridge |
+| What have I learned? | 官方 Claude CLI 已足够支撑 Troupe 的聊天与单次文档/图表生成桥接 |
+| What have I done? | 已完成实现、跑通测试与 typecheck，并记录 lint 脚本现状 |

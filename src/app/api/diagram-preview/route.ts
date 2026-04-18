@@ -1,5 +1,11 @@
 import { generateText } from "ai";
 import { NextRequest, NextResponse } from "next/server";
+import { getClaudeModelId } from "@/lib/ai/claude";
+import {
+  getResolvedClaudeTransport,
+  runClaudePrompt,
+} from "@/lib/ai/claude-cli";
+import { formatClaudeError } from "@/lib/ai/claude-errors";
 import {
   getActiveProvider,
   getClaudeModel,
@@ -58,6 +64,18 @@ async function generateMermaidDiagram(
     );
   }
 
+  if (providerType === "claude") {
+    const transport = await getResolvedClaudeTransport();
+    if (transport === "cli") {
+      return runClaudePrompt(prompt, {
+        model: await getClaudeModelId(),
+        systemPrompt: DIAGRAM_SYSTEM_PROMPT,
+        cwd: process.cwd(),
+        abortSignal,
+      });
+    }
+  }
+
   const model =
     providerType === "claude"
       ? await getClaudeModel()
@@ -106,8 +124,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "流程图生成失败，请稍后重试。",
+        error: formatClaudeError(error),
       },
       { status: 500 }
     );

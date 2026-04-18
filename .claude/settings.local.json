@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone:*)",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/superpowers/skills/**)",
+      "Read(//private/tmp/superpowers/commands/**)",
+      "Read(//Users/casper/.claude/**)",
+      "Bash(mkdir -p ~/.claude/skills)",
+      "Bash(cp -r /tmp/superpowers/skills/* ~/.claude/skills/)"
+    ]
+  }
+}

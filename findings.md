@@ -1,36 +1,58 @@
 # Findings & Decisions
 
 ## Requirements
-- 为 `requirements` 阶段 QA 增加独立结构化文档类型。
-- 让 QA 这阶段的输出能被同步进 `documents` 表，并显示在项目页右侧。
-- 保持 `delivery` 阶段 QA 的 `test_plan` 逻辑不变。
-- 尽量让阶段文案、同步规则、文档展示和建议动作保持一致。
+- 用户希望把 Claude 集成改成官方 CLI bridge，而不是继续依赖 Anthropic-compatible HTTP 网关。
+- 新桥接至少要覆盖三个现有 Claude 入口：聊天、文档生成、Mermaid 预览。
+- 现有 `claude` provider 仍需保留模型选择体验，尽量避免新增一个平行 provider。
 
 ## Research Findings
-- `requirements` 阶段 QA 指南当前定义的 deliverables 是“需求缺口/边界异常/验收标准/风险点”，且 `materialDocumentTypes` 为空，不要求正式测试方案文档。
-- 右侧文档面板的“当前阶段必交付”在 `requirements` 只认 `prd`，但会额外列出 `phaseDocs` 中属于当前阶段的任何文档。
-- 自动同步逻辑当前只会把 QA 输出识别成 `test_plan`，识别条件是 `# 测试方案` + `## 测试策略`。
-- 项目页刷新会触发 `/api/projects/[id]`，而这个接口会先执行 `syncDerivedDocuments(id)`，所以问题不是没刷新，而是没同步出文档。
-- 当前数据库里的 requirements QA 历史输出已经稳定使用 `# QA 审查结论` 结构，并带有缺口、边界、验收标准、风险和开放问题等章节，适合直接回填成结构化文档。
+- 当前 `claude` provider 只走 `@ai-sdk/anthropic`，聊天和文档接口没有 CLI 分支。
+- 本机 `claude` CLI 已安装，版本是 `2.1.98 (Claude Code)`。
+- `claude auth status --json` 返回：
+  - `loggedIn: true`
+  - `authMethod: "oauth_token"`
+  - `apiProvider: "firstParty"`
+- `claude -p --output-format json "..."` 可稳定返回 `result` 字段。
+- `claude -p --verbose --output-format stream-json --include-partial-messages "..."` 会输出 JSONL 事件流：
+  - `stream_event -> content_block_delta -> delta.text`
+  - `assistant -> message.content[].text`
+  - `result -> result`
+- `stream-json` 必须配合 `--verbose`。
+- `--tools ""` 可成功禁用工具执行，避免 CLI 进入权限/工具分支。
+- `claude -p` 当前未能直接消费普通 stdin 文本；bridge 先按 prompt argument 方式实现更稳妥。
 
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|
-| 新增 `requirements_review` 文档类型 | 名称直接表达 requirements 阶段 QA 评审结论，避免和 `test_plan` 混淆 |
-| 让 QA agent system prompt 按 phase 输出不同模板 | 一个统一的 `# 测试方案` 模板会污染 requirements 阶段行为 |
-| 保持 `requirements` 阶段必交付仍只有 `prd` | 这次先修“右侧不更新”和“产物语义错位”，不同时改变阶段 gate 规则 |
-| `syncDerivedDocuments` 兼容识别现有 `# QA 审查结论` 文本 | 改完后无需用户重跑历史对话，旧项目刷新即可回填文档 |
+| 新增 `src/lib/ai/claude-cli.ts` 承载 CLI 状态、JSONL 解析和执行 | 让 CLI 逻辑与 `claude.ts` 的网关/API 配置分离 |
+| 新增 `claude_execution_mode` 设置：`auto` / `cli` / `api` | 允许渐进迁移；默认 `auto` 解决当前用户问题 |
+| `auto` 模式优先 CLI，CLI 不可用时回退 API | 对已配置 Anthropic key / 网关的用户保持兼容 |
+| 聊天路由使用自定义 `createUIMessageStream` | Claude CLI 不是 AI SDK model，不能直接塞给 `streamText` |
+| 文档与图表生成使用 CLI 的单次 `json` 输出 | 这两处不需要 token 级流式，优先简化实现 |
+| 设置页只展示 CLI 状态，不内嵌网页登录按钮 | `claude auth login` 的可编排设备流未验证，本轮避免做半成品登录 UX |
 
-## Issues Encountered
-| Issue | Resolution |
-|-------|------------|
-| `git status` 显示 `troupe.db-shm` 已被修改 | 视为运行态数据库文件，避免触碰 |
+## Open Risks
+- 大 prompt 通过 argv 传给 `claude -p` 有长度上限风险，但短中等项目上下文应可接受；如果后续遇到真实超限，再升级为 `stream-json` 输入模式。
+- `claude auth login` 是否适合 web 内发起还未验证，本轮先不做网页登录按钮，只做状态展示和桥接。
+- 仓库当前 `npm run lint` 脚本本身异常，不能作为此次改动的有效验证手段。
+- Chat 路由当前把完整对话历史拼成单个 prompt 传给 CLI，与原先 API 路径的 message 数组语义不完全一致，但对现有 Troupe 角色对话应足够稳定。
+
+## Implementation Summary
+- 新增 `claude-cli-utils.ts` 和 `claude-cli.ts`，封装执行模式、CLI 状态、JSON/JSONL 解析及 prompt 执行。
+- `chat` / `documents/generate` / `diagram-preview` 在 `claude` provider 下会先解析执行模式；若命中 CLI，则通过官方 `claude -p` 路径执行。
+- 设置页现在展示 Claude CLI 安装/登录状态、当前实际 transport 和执行模式选择；保存后会立即刷新 Claude 状态。
 
 ## Resources
-- `/Users/casper/Documents/try/Troupe/src/lib/chat/phase-chat-guidance.ts`
-- `/Users/casper/Documents/try/Troupe/src/lib/documents/sync.ts`
-- `/Users/casper/Documents/try/Troupe/src/components/documents/document-panel.tsx`
-- `/Users/casper/Documents/try/Troupe/src/lib/agents/roles/qa.ts`
+- `/Users/casper/Documents/project/Troupe/src/lib/ai/codex.ts`
+- `/Users/casper/Documents/project/Troupe/src/lib/ai/claude.ts`
+- `/Users/casper/Documents/project/Troupe/src/lib/ai/provider.ts`
+- `/Users/casper/Documents/project/Troupe/src/app/api/chat/route.ts`
+- `/Users/casper/Documents/project/Troupe/src/app/api/documents/generate/route.ts`
+- `/Users/casper/Documents/project/Troupe/src/app/api/diagram-preview/route.ts`
+- `/Users/casper/Documents/project/Troupe/src/app/settings/page.tsx`
 
-## Visual/Browser Findings
-- 无。
+## Command Evidence
+- `claude --version` -> `2.1.98 (Claude Code)`
+- `claude auth status --json` -> logged-in first-party OAuth
+- `claude -p --output-format json "reply with exactly the word pong"` -> `result: "pong"`
+- `claude -p --verbose --output-format stream-json --include-partial-messages "reply with exactly the word pong"` -> incremental `text_delta` events

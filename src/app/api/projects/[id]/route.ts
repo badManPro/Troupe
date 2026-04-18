@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
 import { syncDerivedDocuments } from "@/lib/documents/sync";
+import { deleteProjectById } from "@/lib/projects/delete-project";
 import { buildRequirementsPhaseWorkflow } from "@/lib/workspace/requirements-phase";
 import { eq, inArray } from "drizzle-orm";
 import type { DocumentType, Phase, ProjectDocument } from "@/types";
@@ -117,4 +118,20 @@ export async function PATCH(
     .get();
 
   return NextResponse.json(project);
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  ensureDb();
+  const { id } = await params;
+
+  const result = deleteProjectById(id);
+
+  if (result.changes === 0) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
 }

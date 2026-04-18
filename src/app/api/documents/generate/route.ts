@@ -1,5 +1,11 @@
 import { streamText } from "ai";
 import { NextRequest } from "next/server";
+import { getClaudeConfig, getClaudeModelId } from "@/lib/ai/claude";
+import {
+  getResolvedClaudeTransport,
+  runClaudePrompt,
+} from "@/lib/ai/claude-cli";
+import { formatClaudeError } from "@/lib/ai/claude-errors";
 import {
   getActiveProvider,
   getClaudeModel,
@@ -219,6 +225,37 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let claudeTransport: "cli" | "api" | null = null;
+  if (providerType === "claude") {
+    try {
+      claudeTransport = await getResolvedClaudeTransport();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Claude 执行模式不可用";
+      return new Response(JSON.stringify({ error: message }), { status: 500 });
+    }
+  }
+
+  if (providerType === "claude" && claudeTransport === "cli") {
+    try {
+      const text = await runClaudePrompt(`${projectInfo}\n\n请${docConfig.instruction}`, {
+        model: await getClaudeModelId(),
+        systemPrompt,
+        cwd: process.cwd(),
+        abortSignal: req.signal,
+      });
+
+      await persistDocument(text);
+      return createStaticTextStreamResponse(text);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Claude CLI 文档生成失败";
+      return new Response(JSON.stringify({ error: message }), { status: 500 });
+    }
+  }
+
+  const claudeConfig =
+    providerType === "claude" ? await getClaudeConfig() : null;
   const model =
     providerType === "claude"
       ? await getClaudeModel()
@@ -237,5 +274,10 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    onError:
+      providerType === "claude"
+        ? (error) => formatClaudeError(error, claudeConfig ?? undefined)
+        : undefined,
+  });
 }

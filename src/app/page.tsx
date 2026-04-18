@@ -9,6 +9,7 @@ import {
   Sparkles,
   Lightbulb,
   Settings,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DELETE_PROJECT_CONFIRMATION_TEXT,
+  isProjectDeletionConfirmationValid,
+} from "@/lib/projects/delete-confirmation";
 import { PHASES, type Phase } from "@/types";
 
 interface Project {
@@ -76,6 +81,12 @@ export default function Dashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(
+    null
+  );
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
 
   const fetchProjects = useCallback(async () => {
@@ -110,11 +121,51 @@ export default function Dashboard() {
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const resetDeleteDialog = () => {
+    setProjectPendingDelete(null);
+    setDeleteConfirmation("");
+    setDeleteError(null);
+    setDeletePending(false);
+  };
+
+  const closeDeleteDialog = () => {
+    if (deletePending) return;
+    resetDeleteDialog();
+  };
+
+  const handleDeleteRequest = (project: Project, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("确定要删除这个项目吗？所有数据将无法恢复。")) return;
-    await fetch(`/api/projects?id=${id}`, { method: "DELETE" });
-    fetchProjects();
+    e.preventDefault();
+    setProjectPendingDelete(project);
+    setDeleteConfirmation("");
+    setDeleteError(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!projectPendingDelete) return;
+    if (!isProjectDeletionConfirmationValid(deleteConfirmation)) return;
+
+    setDeletePending(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch(`/api/projects/${projectPendingDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        setDeleteError(payload?.error ?? "删除失败，请稍后重试。");
+        return;
+      }
+
+      resetDeleteDialog();
+      await fetchProjects();
+    } catch {
+      setDeleteError("删除失败，请检查网络后重试。");
+    } finally {
+      setDeletePending(false);
+    }
   };
 
   return (
@@ -214,6 +265,77 @@ export default function Dashboard() {
           </Dialog>
         </div>
 
+        <Dialog
+          open={Boolean(projectPendingDelete)}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeDeleteDialog();
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>删除项目</DialogTitle>
+              <DialogDescription>
+                {projectPendingDelete ? (
+                  <>
+                    项目“{projectPendingDelete.name}”以及它的会话、文档和阶段记录都会被永久删除。
+                    请输入
+                    <span className="mx-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+                      {DELETE_PROJECT_CONFIRMATION_TEXT}
+                    </span>
+                    继续。
+                  </>
+                ) : (
+                  "此操作不可恢复。"
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4">
+              <Input
+                autoFocus
+                placeholder={`请输入“${DELETE_PROJECT_CONFIRMATION_TEXT}”`}
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                disabled={deletePending}
+              />
+              {deleteError ? (
+                <p className="text-sm text-destructive">{deleteError}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  只有输入完全匹配的确认词后，删除按钮才会启用。
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={closeDeleteDialog}
+                disabled={deletePending}
+              >
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={
+                  deletePending ||
+                  !isProjectDeletionConfirmationValid(deleteConfirmation)
+                }
+              >
+                {deletePending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    删除中
+                  </>
+                ) : (
+                  "确认删除"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
@@ -258,33 +380,32 @@ export default function Dashboard() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: idx * 0.05 }}
+                  className="h-full"
                 >
                   <Card
-                    className="cursor-pointer hover:shadow-md transition-shadow group"
+                    className="group flex h-full cursor-pointer flex-col transition-shadow hover:shadow-md"
                     onClick={() => router.push(`/project/${project.id}`)}
                   >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-base">
+                    <CardHeader className="flex-1 pb-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <CardTitle className="line-clamp-2 min-h-[3rem] text-base leading-6">
                           {project.name}
                         </CardTitle>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => handleDelete(project.id, e)}
+                          className="h-7 w-7 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                          onClick={(e) => handleDeleteRequest(project, e)}
                         >
                           <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
                         </Button>
                       </div>
-                      {project.description && (
-                        <CardDescription className="line-clamp-2">
-                          {project.description}
-                        </CardDescription>
-                      )}
+                      <CardDescription className="min-h-10 line-clamp-2 leading-5">
+                        {project.description || ""}
+                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="pb-3">
-                      <div className="flex items-center gap-2 mb-2">
+                    <CardContent className="space-y-3 pb-3">
+                      <div className="flex items-center gap-2">
                         <Badge
                           variant="secondary"
                           className={phaseColors[project.phase]}
@@ -294,7 +415,7 @@ export default function Dashboard() {
                       </div>
                       <Progress value={getPhaseProgress(project.phase)} />
                     </CardContent>
-                    <CardFooter className="text-xs text-muted-foreground">
+                    <CardFooter className="mt-auto text-xs text-muted-foreground">
                       {new Date(project.updatedAt).toLocaleDateString("zh-CN")}
                     </CardFooter>
                   </Card>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { ensureDb } from "@/lib/db/init";
+import { deleteProjectById } from "@/lib/projects/delete-project";
 import { v4 as uuid } from "uuid";
 import { eq, desc } from "drizzle-orm";
 
@@ -56,6 +57,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing project id" }, { status: 400 });
   }
 
-  db.delete(schema.projects).where(eq(schema.projects.id, id)).run();
+  const result = deleteProjectById(id);
+
+  if (result.changes === 0) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
   return NextResponse.json({ success: true });
 }

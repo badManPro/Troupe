@@ -2,6 +2,9 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { getSetting } from "@/lib/db/init";
+import { getClaudeTransportInfo } from "@/lib/ai/claude-cli";
+import { getClaudeCompatibilityWarning } from "@/lib/ai/claude-errors";
+import type { ClaudeExecutionMode } from "@/lib/ai/claude-cli-utils";
 
 const CLAUDE_HOME = path.join(os.homedir(), ".claude");
 const CLAUDE_SETTINGS_PATH = path.join(CLAUDE_HOME, "settings.json");
@@ -20,6 +23,15 @@ export interface ClaudeStatus {
   normalizedBaseUrl: string | null;
   hasAuthToken: boolean;
   hasApiKey: boolean;
+  executionMode: ClaudeExecutionMode;
+  effectiveTransport: "cli" | "api" | null;
+  executionError: string | null;
+  cliInstalled: boolean;
+  cliAuthenticated: boolean;
+  cliVersion: string | null;
+  cliAuthMethod: string | null;
+  cliApiProvider: string | null;
+  compatibilityWarning: string | null;
   detectedModels: ClaudeModel[];
   defaultModel: string;
 }
@@ -197,6 +209,7 @@ export async function getClaudeModelId(modelId?: string) {
 
 export async function getClaudeStatus(): Promise<ClaudeStatus> {
   const config = await getClaudeConfig();
+  const transportInfo = await getClaudeTransportInfo();
 
   return {
     configured: !!config.authToken || !!config.apiKey,
@@ -205,6 +218,18 @@ export async function getClaudeStatus(): Promise<ClaudeStatus> {
     normalizedBaseUrl: config.baseURL,
     hasAuthToken: !!config.authToken,
     hasApiKey: !!config.apiKey,
+    executionMode: transportInfo.executionMode,
+    effectiveTransport: transportInfo.effectiveTransport,
+    executionError: transportInfo.executionError,
+    cliInstalled: transportInfo.cliStatus.installed,
+    cliAuthenticated: transportInfo.cliStatus.authenticated,
+    cliVersion: transportInfo.cliStatus.version,
+    cliAuthMethod: transportInfo.cliStatus.authMethod,
+    cliApiProvider: transportInfo.cliStatus.apiProvider,
+    compatibilityWarning:
+      transportInfo.effectiveTransport === "api"
+        ? getClaudeCompatibilityWarning(config)
+        : null,
     detectedModels: getClaudeModels(),
     defaultModel: await getClaudeModelId(),
   };

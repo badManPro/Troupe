@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { tagColors } from "@/lib/tag-colors";
 
 type AiProvider = "openai" | "claude" | "codex";
+type ClaudeExecutionMode = "auto" | "cli" | "api";
 
 interface CodexStatus {
   installed: boolean;
@@ -50,6 +51,15 @@ interface ClaudeStatus {
   normalizedBaseUrl: string | null;
   hasAuthToken: boolean;
   hasApiKey: boolean;
+  executionMode: ClaudeExecutionMode;
+  effectiveTransport: "cli" | "api" | null;
+  executionError: string | null;
+  cliInstalled: boolean;
+  cliAuthenticated: boolean;
+  cliVersion: string | null;
+  cliAuthMethod: string | null;
+  cliApiProvider: string | null;
+  compatibilityWarning: string | null;
   detectedModels: CodexModel[];
   defaultModel: string;
 }
@@ -66,6 +76,8 @@ export default function SettingsPage() {
 
   const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
   const [claudeModel, setClaudeModel] = useState("claude-sonnet-4-6");
+  const [claudeExecutionMode, setClaudeExecutionMode] =
+    useState<ClaudeExecutionMode>("auto");
 
   const [codexStatus, setCodexStatus] = useState<CodexStatus | null>(null);
   const [codexModel, setCodexModel] = useState("gpt-5.4");
@@ -131,6 +143,15 @@ export default function SettingsPage() {
       })
       .catch(() => {});
 
+    fetch("/api/settings?key=claude_execution_mode")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.value === "cli" || d.value === "api" || d.value === "auto") {
+          setClaudeExecutionMode(d.value);
+        }
+      })
+      .catch(() => {});
+
     fetch("/api/settings?key=codex_model")
       .then((r) => r.json())
       .then((d) => {
@@ -181,12 +202,22 @@ export default function SettingsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ key: "claude_model", value: claudeModel }),
         });
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: "claude_execution_mode",
+            value: claudeExecutionMode,
+          }),
+        });
+        fetchClaudeStatus();
       } else {
         await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ key: "codex_model", value: codexModel }),
         });
+        fetchCodexStatus();
       }
 
       setSaved(true);
@@ -306,10 +337,10 @@ export default function SettingsPage() {
               >
                 <div className="flex items-center gap-2 font-medium">
                   <Bot className="w-4 h-4" />
-                  Claude 中转
+                  Claude
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  复用本机 Claude 配置
+                  Claude CLI / API
                 </div>
               </button>
               <button
@@ -420,34 +451,78 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bot className="w-5 h-5" />
-                Claude 中转配置
+                Claude 配置
               </CardTitle>
               <CardDescription>
-                默认复用本机{" "}
+                优先支持官方 Claude CLI bridge，也可回退到本机{" "}
                 <code className="font-mono text-xs">~/.claude/settings.json</code>{" "}
                 中的 <code className="font-mono text-xs">ANTHROPIC_BASE_URL</code>{" "}
-                和{" "}
-                <code className="font-mono text-xs">ANTHROPIC_AUTH_TOKEN</code>
-                ，适合当前这种中转站接入方式。
+                、<code className="font-mono text-xs">ANTHROPIC_AUTH_TOKEN</code> 和{" "}
+                <code className="font-mono text-xs">ANTHROPIC_API_KEY</code>。API
+                路径前提是该网关对外暴露标准 Anthropic Messages API
+                （<code className="font-mono text-xs">/v1/messages</code>）；
+                只允许官方 Claude CLI 的网关无法被本应用直接复用。
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                {claudeStatus?.configured ? (
+                {claudeStatus?.effectiveTransport === "cli" ? (
                   <Badge
                     variant="secondary"
                     className={tagColors.greenSurface}
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" />
-                    已检测到本机 Claude 配置
+                    当前使用 Claude CLI
+                  </Badge>
+                ) : claudeStatus?.effectiveTransport === "api" ? (
+                  <Badge
+                    variant="secondary"
+                    className={
+                      claudeStatus.compatibilityWarning
+                        ? tagColors.orangeSurface
+                        : tagColors.greenSurface
+                    }
+                  >
+                    {claudeStatus.compatibilityWarning ? (
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                    )}
+                    当前使用 HTTP API
                   </Badge>
                 ) : (
                   <Badge
                     variant="secondary"
-                    className={tagColors.orangeSurface}
+                    className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
                   >
                     <AlertCircle className="w-3 h-3 mr-1" />
-                    未检测到可用 Claude 配置
+                    Claude 当前不可用
+                  </Badge>
+                )}
+                {claudeStatus?.cliInstalled ? (
+                  <Badge
+                    variant="secondary"
+                    className={
+                      claudeStatus.cliAuthenticated
+                        ? tagColors.greenSurface
+                        : tagColors.orangeSurface
+                    }
+                  >
+                    {claudeStatus.cliAuthenticated ? (
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                    ) : (
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                    )}
+                    Claude CLI
+                    {claudeStatus.cliAuthenticated ? " 已登录" : " 未登录"}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                  >
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    未安装 Claude CLI
                   </Badge>
                 )}
                 {claudeStatus?.baseUrl && (
@@ -458,20 +533,98 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1 text-xs text-muted-foreground">
+                <p>执行模式：{claudeExecutionMode}</p>
+                <p>
+                  当前实际执行：
+                  {claudeStatus?.effectiveTransport === "cli"
+                    ? " Claude CLI"
+                    : claudeStatus?.effectiveTransport === "api"
+                      ? " HTTP API"
+                      : " 无可用执行路径"}
+                </p>
                 <p>配置文件：{claudeStatus?.configPath || "~/.claude/settings.json"}</p>
                 <p>
-                  鉴权方式：
+                  API 鉴权方式：
                   {claudeStatus?.hasAuthToken
                     ? " Bearer Token"
                     : claudeStatus?.hasApiKey
                       ? " X-Api-Key"
                       : " 未检测到"}
                 </p>
+                <p>
+                  CLI 状态：
+                  {claudeStatus?.cliInstalled
+                    ? claudeStatus.cliAuthenticated
+                      ? " 已登录"
+                      : " 已安装，未登录"
+                    : " 未安装"}
+                </p>
+                {claudeStatus?.cliVersion && (
+                  <p>CLI 版本：{claudeStatus.cliVersion}</p>
+                )}
+                {claudeStatus?.cliAuthMethod && (
+                  <p>CLI 鉴权：{claudeStatus.cliAuthMethod}</p>
+                )}
+                {claudeStatus?.cliApiProvider && (
+                  <p>CLI Provider：{claudeStatus.cliApiProvider}</p>
+                )}
                 {claudeStatus?.normalizedBaseUrl &&
                   claudeStatus.normalizedBaseUrl !== claudeStatus.baseUrl && (
                     <p>实际请求前缀：{claudeStatus.normalizedBaseUrl}</p>
                   )}
               </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">执行模式</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {[
+                    {
+                      id: "auto",
+                      title: "Auto",
+                      desc: "优先用 Claude CLI，失败时再回退 HTTP API",
+                    },
+                    {
+                      id: "cli",
+                      title: "CLI",
+                      desc: "强制使用官方 Claude CLI",
+                    },
+                    {
+                      id: "api",
+                      title: "API",
+                      desc: "强制使用 HTTP API / 网关",
+                    },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() =>
+                        setClaudeExecutionMode(option.id as ClaudeExecutionMode)
+                      }
+                      className={`p-3 rounded-lg border text-left text-sm transition-all cursor-pointer ${
+                        claudeExecutionMode === option.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border hover:border-primary/30"
+                      }`}
+                    >
+                      <div className="font-medium">{option.title}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {option.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {claudeStatus?.compatibilityWarning && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  {claudeStatus.compatibilityWarning}
+                </div>
+              )}
+
+              {claudeStatus?.executionError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
+                  {claudeStatus.executionError}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">默认模型</label>
@@ -504,10 +657,12 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {!claudeStatus?.configured && (
+              {!claudeStatus?.configured && !claudeStatus?.cliAuthenticated && (
                 <p className="text-xs text-muted-foreground">
-                  如果你刚切换了 ccswitch 配置，重新打开此页面即可重新读取本机
-                  Claude 中转设置。
+                  如果要使用 Claude CLI，请先在终端运行{" "}
+                  <code className="font-mono text-xs">claude auth login</code>。
+                  如果要使用 API 模式，请确保本机 Claude 配置或设置页里存在可用
+                  的网关鉴权信息。
                 </p>
               )}
             </CardContent>
@@ -725,7 +880,7 @@ export default function SettingsPage() {
             </p>
             <p>
               所有数据存储在本地，AI 调用通过你自己的 OpenAI API Key 或已登录的
-              Codex CLI 进行，数据不出本机。
+              Codex / Claude CLI 进行，数据不出本机。
             </p>
             <p className="text-xs">Version 0.1.0</p>
           </CardContent>
