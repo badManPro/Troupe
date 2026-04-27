@@ -57,7 +57,7 @@ function GuideBlock({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-border/60 bg-background/75 p-3 shadow-sm">
+    <div className="rounded-2xl border border-border/60 bg-background/62 p-3 shadow-sm backdrop-blur">
       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         <Icon className="h-4 w-4 text-primary" />
         {title}
@@ -85,7 +85,7 @@ function MetricItem({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/60 bg-background/75 px-3 py-2 shadow-sm">
+    <div className="rounded-2xl border border-border/60 bg-background/62 px-3 py-2 shadow-sm backdrop-blur">
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
     </div>
@@ -177,7 +177,7 @@ export function PhaseContextCard({
     <div className="pointer-events-auto px-4 py-3">
       <div
         className={cn(
-          "relative overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-lg backdrop-blur-sm",
+          "surface-glass relative overflow-hidden rounded-[1.35rem] border-border/70 shadow-[0_20px_70px_hsl(222_24%_2%/0.10)]",
           !collapsed && "flex flex-col"
         )}
         style={expandedCardStyle}
@@ -219,7 +219,7 @@ export function PhaseContextCard({
                     type="button"
                     size="sm"
                     variant={primaryActionVariant}
-                    className="h-8 rounded-xl px-3"
+                    className="h-8 rounded-xl px-3 shadow-[0_10px_26px_hsl(255_92%_76%/0.14)]"
                     disabled={primaryActionDisabled}
                     onClick={primaryActionHandler}
                   >
@@ -234,7 +234,7 @@ export function PhaseContextCard({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-8 rounded-xl px-3"
+                    className="h-8 rounded-xl px-3 shadow-[0_10px_26px_hsl(255_92%_76%/0.14)]"
                     onClick={onAdvancePhase}
                   >
                     进入{nextPhaseName}
@@ -324,7 +324,7 @@ export function PhaseContextCard({
                   />
                 </div>
 
-                <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
+                <div className="rounded-2xl border border-border/60 bg-background/52 p-3.5 backdrop-blur">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="text-sm font-medium text-foreground">当前轮进度</div>
@@ -410,7 +410,7 @@ export function PhaseContextCard({
                 </div>
 
                 {showPhaseActions && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/62 px-4 py-3 shadow-sm backdrop-blur">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-foreground">阶段推进</div>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">

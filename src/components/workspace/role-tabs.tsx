@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import type { AgentRole, Phase } from "@/types";
 import { getAgentsForPhase } from "@/lib/agents/registry";
-import { tagColors } from "@/lib/tag-colors";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Briefcase,
@@ -26,13 +25,13 @@ const roleIcons: Record<AgentRole, React.ReactNode> = {
 };
 
 const roleColors: Record<AgentRole, string> = {
-  pm: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  designer: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  architect: tagColors.greenSurface,
-  frontend: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
-  backend: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
-  qa: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-  coordinator: tagColors.orangeSurface,
+  pm: "border-role-pm/25 bg-role-pm/15 text-role-pm",
+  designer: "border-role-designer/25 bg-role-designer/15 text-role-designer",
+  architect: "border-role-architect/25 bg-role-architect/15 text-role-architect",
+  frontend: "border-role-frontend/25 bg-role-frontend/15 text-role-frontend",
+  backend: "border-role-backend/25 bg-role-backend/15 text-role-backend",
+  qa: "border-role-qa/25 bg-role-qa/15 text-role-qa",
+  coordinator: "border-role-coordinator/25 bg-role-coordinator/15 text-role-coordinator",
 };
 
 interface RoleTabsProps {
@@ -51,38 +50,52 @@ export function RoleTabs({
   const agents = getAgentsForPhase(phase);
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b bg-card/50">
-      <span className="text-xs text-muted-foreground mr-1">当前角色:</span>
-      {agents.map((agent) => (
-        <button
-          key={agent.id}
-          type="button"
-          onClick={() => {
-            if (disabledRoles[agent.id]) {
-              return;
-            }
-            onRoleSelect(agent.id);
-          }}
-          disabled={Boolean(disabledRoles[agent.id])}
-          title={disabledRoles[agent.id]}
-          className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all",
-            activeRole === agent.id
-              ? "bg-primary/10 text-primary font-medium ring-1 ring-primary/20"
-              : "text-muted-foreground",
-            disabledRoles[agent.id]
-              ? "cursor-not-allowed opacity-55"
-              : "cursor-pointer hover:bg-muted"
-          )}
-        >
-          <Avatar className={cn("w-6 h-6", roleColors[agent.id])}>
-            <AvatarFallback className={cn("text-xs", roleColors[agent.id])}>
-              {roleIcons[agent.id]}
-            </AvatarFallback>
-          </Avatar>
-          <span>{agent.name}</span>
-        </button>
-      ))}
+    <div className="border-b border-border/55 bg-background/42 px-4 py-3 backdrop-blur-xl">
+      <div className="flex min-w-0 items-center gap-3 overflow-x-auto pb-0.5">
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+          当前角色
+        </span>
+        <div className="flex min-w-max items-center gap-2">
+          {agents.map((agent) => {
+            const active = activeRole === agent.id;
+            const disabled = Boolean(disabledRoles[agent.id]);
+
+            return (
+              <button
+                key={agent.id}
+                type="button"
+                onClick={() => {
+                  if (disabledRoles[agent.id]) {
+                    return;
+                  }
+                  onRoleSelect(agent.id);
+                }}
+                disabled={disabled}
+                title={disabledRoles[agent.id]}
+                className={cn(
+                  "relative flex h-11 items-center gap-2 rounded-2xl border px-3 pr-4 text-sm transition-all",
+                  active
+                    ? "border-primary/35 bg-primary/12 text-primary shadow-[0_12px_34px_hsl(255_92%_76%/0.12)]"
+                    : "border-border/55 bg-background/55 text-muted-foreground",
+                  disabled
+                    ? "cursor-not-allowed opacity-55"
+                    : "cursor-pointer hover:border-primary/20 hover:bg-accent/30 hover:text-foreground"
+                )}
+              >
+                <Avatar className={cn("h-7 w-7 border", roleColors[agent.id])}>
+                  <AvatarFallback className={cn("text-xs", roleColors[agent.id])}>
+                    {roleIcons[agent.id]}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="whitespace-nowrap font-medium">{agent.name}</span>
+                {active && (
+                  <span className="absolute inset-x-3 -bottom-[0.8rem] h-0.5 rounded-full bg-primary shadow-[0_0_16px_hsl(255_92%_76%/0.65)]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

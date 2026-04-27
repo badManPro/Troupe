@@ -427,7 +427,10 @@ export function ChatPanel({
   );
 
   return (
-    <div ref={panelRef} className="relative flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      ref={panelRef}
+      className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_50%_0%,hsl(255_92%_76%/0.08),transparent_34%)]"
+    >
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30">
         <PhaseContextCard
           key={`${phase}-${role}-${messages.length > 0 ? "with-messages" : "empty"}`}
@@ -451,7 +454,7 @@ export function ChatPanel({
         />
       </div>
 
-      <ScrollArea className="flex-1 min-h-0 pt-[6.25rem]" ref={scrollRootRef}>
+      <ScrollArea className="flex-1 min-h-0 pt-[7.75rem]" ref={scrollRootRef}>
         <ChatTranscript
           phase={phase}
           hasExistingPrd={hasExistingPrd}
@@ -560,16 +563,21 @@ const ChatTranscript = memo(function ChatTranscript({
   ]);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="mx-auto max-w-[58rem] space-y-5 px-4 py-5">
       {messages.length === 0 && (
-        <div className="text-center py-12">
-          <Avatar className="w-12 h-12 mx-auto mb-3 bg-primary/10">
-            <AvatarFallback className="text-primary text-lg">
+        <div className="mx-auto flex min-h-[24rem] max-w-xl flex-col items-center justify-center py-12 text-center">
+          <div className="relative mb-5">
+            <div className="absolute inset-0 rounded-full bg-primary/25 blur-2xl" />
+            <Avatar className="relative mx-auto h-20 w-20 border border-primary/25 bg-primary/15 shadow-[0_24px_80px_hsl(255_92%_76%/0.18)]">
+              <AvatarFallback className="bg-transparent text-2xl text-primary">
               {agentName?.[0] ?? "?"}
-            </AvatarFallback>
-          </Avatar>
-          <h3 className="font-medium mb-1">{agentName}</h3>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              </AvatarFallback>
+            </Avatar>
+          </div>
+          <h3 className="mb-2 text-lg font-semibold tracking-tight">
+            我是 {agentName}
+          </h3>
+          <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
             {getEmptyStateCopy(phase, hasExistingPrd, agentId, agentName)}
           </p>
         </div>
@@ -607,14 +615,16 @@ const ChatTranscript = memo(function ChatTranscript({
           <div
             key={message.id}
             className={cn(
-              "flex gap-3",
+              "stream-fade-in flex gap-3",
               message.role === "user" ? "flex-row-reverse" : "flex-row"
             )}
           >
             <Avatar
               className={cn(
-                "w-8 h-8 shrink-0",
-                message.role === "user" ? "bg-primary" : "bg-muted"
+                "h-9 w-9 shrink-0 border shadow-sm",
+                message.role === "user"
+                  ? "border-primary/20 bg-primary"
+                  : "border-border/70 bg-muted"
               )}
             >
               <AvatarFallback
@@ -630,12 +640,12 @@ const ChatTranscript = memo(function ChatTranscript({
             </Avatar>
             <div
               className={cn(
-                "group min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                "group min-w-0 px-4 py-3 text-sm leading-relaxed shadow-sm backdrop-blur-xl",
                 message.role === "user"
                   ? isEditingThisMessage
-                    ? "flex-1 max-w-none bg-primary text-primary-foreground rounded-tr-sm shadow-sm"
-                    : "max-w-[80%] bg-primary text-primary-foreground rounded-tr-sm shadow-sm"
-                  : "max-w-[85%] rounded-tl-sm border border-border/70 bg-card/90 shadow-sm backdrop-blur-sm lg:max-w-[48rem]"
+                    ? "flex-1 max-w-none rounded-2xl rounded-tr-md border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_42px_hsl(255_92%_76%/0.18)]"
+                    : "max-w-[80%] rounded-2xl rounded-tr-md border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_42px_hsl(255_92%_76%/0.18)]"
+                  : "max-w-[86%] rounded-2xl rounded-tl-md border border-border/65 bg-card/82 lg:max-w-[48rem]"
               )}
             >
               {message.role === "assistant" && statusPart && shouldShowStatus && (
@@ -764,7 +774,7 @@ const ChatTranscript = memo(function ChatTranscript({
               {agentName?.[0]}
             </AvatarFallback>
           </Avatar>
-          <div className="rounded-2xl rounded-tl-sm border border-border/70 bg-card/90 px-4 py-3 shadow-sm">
+          <div className="rounded-2xl rounded-tl-md border border-border/70 bg-card/85 px-4 py-3 shadow-sm backdrop-blur">
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
           </div>
         </div>
@@ -837,7 +847,7 @@ const ChatComposer = memo(function ChatComposer({
   );
 
   return (
-    <div className="border-t bg-card/50 p-4">
+    <div className="border-t border-border/55 bg-background/42 p-4 backdrop-blur-xl">
       {!isGenerating && suggestionTitle && onSuggestionSelect && suggestions.length > 0 && (
         <ChatPromptSuggestions
           title={suggestionTitle}
@@ -847,13 +857,13 @@ const ChatComposer = memo(function ChatComposer({
         />
       )}
 
-      <div className="flex gap-2">
+      <div className="mx-auto flex max-w-[58rem] gap-2 rounded-[1.35rem] border border-border/65 bg-background/70 p-2 shadow-[0_18px_54px_hsl(222_24%_2%/0.08),inset_0_1px_0_hsl(0_0%_100%/0.08)] backdrop-blur-xl focus-within:border-primary/45 focus-within:shadow-[0_0_0_1px_hsl(255_92%_76%/0.20),0_18px_60px_hsl(255_92%_76%/0.16)] dark:bg-background/55">
         <Textarea
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="min-h-[44px] max-h-32 resize-none"
+          className="min-h-[3.25rem] max-h-32 resize-none border-0 bg-transparent px-3 py-3 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           rows={1}
           disabled={isGenerating}
         />
@@ -862,7 +872,7 @@ const ChatComposer = memo(function ChatComposer({
           size="icon"
           variant={isGenerating ? "secondary" : "default"}
           disabled={isGenerating ? false : !inputValue.trim()}
-          className="shrink-0 self-end"
+          className="h-12 w-12 shrink-0 self-end rounded-2xl shadow-[0_14px_38px_hsl(255_92%_76%/0.22)]"
           onClick={isGenerating ? onStop : handleSend}
           aria-label={isGenerating ? "停止生成" : "发送消息"}
         >

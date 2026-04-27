@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Sparkles, FileText, Loader2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhaseSidebar } from "@/components/workspace/phase-sidebar";
 import { RoleTabs } from "@/components/workspace/role-tabs";
@@ -10,6 +10,7 @@ import { ConversationTabs } from "@/components/workspace/conversation-tabs";
 import { ChatPanel, type ChatPhaseActionConfig } from "@/components/chat/chat-panel";
 import { DocumentPanel } from "@/components/documents/document-panel";
 import { WindowHeader } from "@/components/layout/window-header";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { applyConversationPromptTracking } from "@/lib/chat/conversation-label";
 import type { RequirementsPhaseWorkflow } from "@/lib/workspace/requirements-phase";
 import type {
@@ -397,8 +398,11 @@ export default function ProjectWorkspace({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-pulse text-muted-foreground">加载中...</div>
+      <div className="app-shell flex h-screen items-center justify-center overflow-hidden">
+        <div className="surface-glass rounded-2xl px-5 py-4 text-sm text-muted-foreground">
+          <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+          正在打开项目工作台...
+        </div>
       </div>
     );
   }
@@ -479,37 +483,63 @@ export default function ProjectWorkspace({
   return (
     <div className="app-shell flex h-screen flex-col overflow-hidden">
       <WindowHeader className="shrink-0" containerClassName="window-header-leading">
-        <div className="flex items-center gap-3 px-4 pb-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full"
-            onClick={() => router.push("/")}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/20">
-              <Sparkles className="w-3 h-3 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-sm font-semibold tracking-tight">{project.name}</h1>
-              <p className="text-xs text-muted-foreground">AI 产品工作台</p>
+        <div className="flex items-center justify-between gap-4 px-4 pb-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 rounded-xl border-border/70 bg-background/65 px-3 shadow-sm backdrop-blur"
+              onClick={() => router.push("/")}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回
+            </Button>
+            <div className="hidden h-8 w-px bg-border/70 sm:block" />
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_14px_38px_hsl(255_92%_76%/0.24)]">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">
+                    {project.name}
+                  </h1>
+                  <span className="hidden rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary sm:inline-flex">
+                    AI 产品工作台
+                  </span>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">
+                  {project.description || "多角色协作推进产品设计与交付"}
+                </p>
+              </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full"
-            onClick={() => router.push(`/project/${id}/documents`)}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            文档中心
-          </Button>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <ThemeToggle />
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden h-9 rounded-xl border-border/70 bg-background/65 px-3 shadow-sm backdrop-blur sm:inline-flex"
+              onClick={() => router.push("/settings")}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              设置
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 rounded-xl border-border/70 bg-background/65 px-3 shadow-sm backdrop-blur"
+              onClick={() => router.push(`/project/${id}/documents`)}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">文档中心</span>
+            </Button>
+          </div>
         </div>
       </WindowHeader>
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 gap-0 overflow-hidden px-2 pb-2 sm:px-3 sm:pb-3">
         <PhaseSidebar
           currentPhase={currentPhase}
           projectPhase={project.phase}
@@ -517,7 +547,7 @@ export default function ProjectWorkspace({
           onPhaseSelect={handlePhaseSelect}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="mx-0 flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/60 bg-background/34 shadow-[0_0_0_1px_hsl(255_92%_76%/0.04)] backdrop-blur-xl lg:rounded-l-none xl:rounded-r-none">
           <RoleTabs
             phase={currentPhase}
             activeRole={activeRole}
@@ -533,7 +563,7 @@ export default function ProjectWorkspace({
           <div className="flex-1 min-h-0 overflow-hidden">
             {conversationLoading ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
+                <div className="surface-glass flex items-center gap-2 rounded-2xl px-4 py-3">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   正在恢复对话记录...
                 </div>
@@ -592,12 +622,14 @@ export default function ProjectWorkspace({
 
         </div>
 
-        <DocumentPanel
-          projectId={id}
-          phase={currentPhase}
-          documents={project.documents}
-          onDocumentsChanged={fetchProject}
-        />
+        <div className="hidden min-h-0 shrink-0 xl:block">
+          <DocumentPanel
+            projectId={id}
+            phase={currentPhase}
+            documents={project.documents}
+            onDocumentsChanged={fetchProject}
+          />
+        </div>
       </div>
     </div>
   );

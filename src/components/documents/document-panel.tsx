@@ -277,8 +277,8 @@ export function DocumentPanel({
     doc: ProjectDocument,
     options?: { showPhase?: boolean }
   ) => (
-    <div
-      key={doc.id}
+      <div
+        key={doc.id}
       role="button"
       tabIndex={0}
       onClick={() => handleSelectDoc(doc)}
@@ -288,10 +288,10 @@ export function DocumentPanel({
           handleSelectDoc(doc);
         }
       }}
-      className={`w-full cursor-pointer rounded-2xl border px-3 py-2.5 text-left text-sm transition-all ${
+      className={`w-full cursor-pointer rounded-2xl border px-3 py-3 text-left text-sm transition-all ${
         activeDoc?.id === doc.id
-          ? "border-primary/25 bg-primary/8 shadow-sm"
-          : "border-border/70 bg-background/70 hover:border-primary/15 hover:bg-accent/35"
+          ? "border-primary/35 bg-primary/12 shadow-[0_12px_36px_hsl(255_92%_76%/0.12)]"
+          : "border-border/60 bg-background/50 hover:border-primary/20 hover:bg-accent/30"
       }`}
       aria-pressed={activeDoc?.id === doc.id}
     >
@@ -365,18 +365,25 @@ export function DocumentPanel({
           onOpenChange={setGenerationDialogOpen}
         />
 
-        <div className="flex h-full min-h-0 w-[23rem] min-w-[23rem] shrink-0 flex-col overflow-hidden border-l bg-card/40 backdrop-blur-sm">
-          <div className="flex items-center justify-between border-b px-4 py-3">
+        <aside className="surface-glass flex h-full min-h-0 w-[29rem] min-w-[29rem] shrink-0 flex-col overflow-hidden rounded-r-[1.35rem] border-l-0">
+          <div className="flex items-center justify-between border-b border-border/55 px-4 py-4">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">产出物</h3>
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">产出物</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  阶段文档与生成入口
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-1">
               {activeDoc && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-8 w-8 rounded-xl border-border/70 bg-background/55"
                   onClick={handleExport}
                   title="导出 Markdown"
                 >
@@ -390,7 +397,7 @@ export function DocumentPanel({
             defaultValue="current"
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
-            <TabsList className="mx-4 mt-3 h-9 w-fit shrink-0 rounded-xl bg-muted/80 p-1">
+            <TabsList className="mx-4 mt-3 h-10 w-fit shrink-0 rounded-xl border border-border/60 bg-background/55 p-1">
               <TabsTrigger value="current" className="text-xs">
                 当前阶段
               </TabsTrigger>
@@ -407,7 +414,7 @@ export function DocumentPanel({
                 <div className="space-y-4 py-3">
                   <div className="space-y-2 px-4">
                     {phaseArtifacts.totalRequiredDocuments > 0 && (
-                      <div className="rounded-[22px] border border-border/70 bg-background/85 p-3 shadow-sm">
+                      <div className="rounded-[22px] border border-border/60 bg-background/52 p-3 shadow-sm backdrop-blur">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-sm font-semibold text-foreground">
@@ -430,7 +437,7 @@ export function DocumentPanel({
                           {phaseArtifacts.requiredDocuments.map((document) => (
                             <div
                               key={document.type}
-                              className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2"
+                              className="flex items-center justify-between gap-3 rounded-2xl border border-border/55 bg-background/42 px-3 py-2"
                             >
                               <div className="min-w-0">
                                 <div className="text-[13px] font-medium text-foreground">
@@ -465,7 +472,7 @@ export function DocumentPanel({
                     {phaseDocs.map((doc) => renderDocumentCard(doc))}
 
                     {phase === "design" && (
-                      <div className="rounded-[22px] border border-border/70 bg-background/85 p-3 shadow-sm">
+                      <div className="rounded-[22px] border border-border/60 bg-background/52 p-3 shadow-sm backdrop-blur">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="text-sm font-semibold text-foreground">
@@ -480,7 +487,7 @@ export function DocumentPanel({
                           </Badge>
                         </div>
 
-                        <div className="mt-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2">
+                        <div className="mt-3 rounded-2xl border border-border/55 bg-background/42 px-3 py-2">
                           <div className="text-[13px] font-medium text-foreground">
                             {designSpec ? "设计方案已接入" : "设计方案待建立"}
                           </div>
@@ -494,7 +501,7 @@ export function DocumentPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="mt-3 h-8 w-full justify-start rounded-xl border-border/70 bg-background/80 text-xs shadow-sm"
+                          className="mt-3 h-9 w-full justify-start rounded-xl border-border/70 bg-background/65 text-xs shadow-sm"
                           onClick={() => handleGenerate("design_mockup")}
                           disabled={generating || !canGenerateDesignMockup}
                         >
@@ -521,7 +528,7 @@ export function DocumentPanel({
                               key={docType}
                               variant="outline"
                               size="sm"
-                              className="h-8 w-full justify-start rounded-xl border-border/70 bg-background/80 text-xs shadow-sm"
+                              className="h-9 w-full justify-start rounded-xl border-border/70 bg-background/65 text-xs shadow-sm"
                               onClick={() => handleGenerate(docType)}
                               disabled={generating}
                             >
@@ -575,7 +582,7 @@ export function DocumentPanel({
               </ScrollArea>
             </TabsContent>
           </Tabs>
-        </div>
+        </aside>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="h-[88vh] max-w-6xl gap-0 overflow-hidden p-0">
