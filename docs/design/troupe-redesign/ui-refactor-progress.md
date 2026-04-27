@@ -40,7 +40,11 @@ Commit:
 
 ## Step 2: Dashboard
 
-Status: revised after initial walkthrough feedback, awaiting user re-check.
+Status: baseline complete.
+
+Completion note:
+- This marks the dashboard as stable enough to proceed to later implementation batches.
+- It does not freeze dashboard polish. Visual parity and small detail updates can still be handled in follow-up passes.
 
 Scope:
 - Restyled `/` dashboard in `src/app/page.tsx` against references `02_dashboard__light-data__1440x900.png`, `03_dashboard__dark-data__1440x900.png`, and `04_dashboard__states-modals__1440x900.png`.
@@ -76,6 +80,68 @@ Feedback log:
 
 Known follow-up:
 - ESLint config still needs separate repair before lint can be used as a reliable gate.
+
+Commit:
+- Pending commit at time of document update.
+
+## Step 3: Workspace
+
+Status: baseline complete.
+
+Completion note:
+- Workspace baseline was accepted for forward progress.
+- Chat detail states, document modal details, and generation modal details can still receive follow-up polish.
+
+Scope:
+- Restyled `/project/[id]` against references `05_workspace__light-main__1440x900.png`, `06_workspace__dark-main__1440x900.png`, `07_workspace__chat-states__1440x900.png`, and `08_workspace__artifacts-doc-modal__1440x900.png`.
+- First batch focused on the workspace shell, phase sidebar, role tabs, conversation tabs, chat surface, composer, phase context card, and artifacts panel shell.
+- Kept chat persistence, phase orchestration, API routes, document generation behavior, and database structures unchanged.
+
+Verification:
+- `npx tsc --noEmit --pretty false`: passed.
+- `npm run build`: passed.
+- `npm run lint`: blocked by existing ESLint flat-config issue: `Cannot redefine plugin "@typescript-eslint"`.
+
+Known follow-up:
+- Chat detail states, document modal, and streaming generation modal may need separate finer passes.
+
+Commit:
+- Pending commit at time of document update.
+
+## Step 4: Documents Center
+
+Status: baseline complete.
+
+Completion note:
+- User walkthrough passed.
+- Documents Center is stable enough to proceed to later implementation batches.
+
+Scope:
+- Restyle `/project/[id]/documents` against references `10_documents-center__light-main__1440x900.png` and `11_documents-center__dark-main__1440x900.png`.
+- First batch focuses on the document center shell, grouped document navigator, active document header, preview/edit layout, save/export actions, empty states, and responsive behavior.
+- Keep document fetch/save/export behavior, API contracts, and document editor semantics unchanged.
+
+Verification:
+- `npx tsc --noEmit --pretty false`: passed.
+- `npm run build`: passed.
+- `npm run lint`: blocked by existing ESLint flat-config issue: `Cannot redefine plugin "@typescript-eslint"`.
+- Local dev server: `http://localhost:3000`.
+- Browser screenshot walkthrough with Playwright:
+  - `/project/faada293-9efb-4b39-a7e9-d48bb01d7dcd/documents` at 1440x900 light theme rendered.
+  - Same route at 1440x900 dark theme rendered.
+  - Same route at 768x900 rendered with mobile document picker and no obvious horizontal overflow.
+- Adjusted narrow layout after screenshot review so the document center keeps a document selection entry when the desktop sidebar is hidden.
+
+Manual walkthrough to perform:
+- Open `/project/[id]/documents` with an existing project.
+- Toggle light/dark theme.
+- Select documents from each phase group.
+- Switch preview/edit tabs, edit text, save, export one document, and export all documents when available.
+- Check empty state with a project that has no documents if practical.
+- Confirm no horizontal scroll, no text overlap, and readable markdown/table/code rendering.
+
+Known follow-up:
+- Full rich text toolbar behavior is not implemented in this app; this batch only restyles the existing Markdown preview/edit experience.
 
 Commit:
 - Pending commit at time of document update.
